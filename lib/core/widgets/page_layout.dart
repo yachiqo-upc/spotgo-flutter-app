@@ -35,11 +35,15 @@ class ScreenHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.onProfileTap,
+    this.onBack,
   });
 
   final String title;
   final String subtitle;
   final VoidCallback? onProfileTap;
+
+  /// Shown for sections opened inside a tab (e.g. More > Parking zones).
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +53,12 @@ class ScreenHeader extends StatelessWidget {
       children: [
         Row(
           children: [
+            if (onBack != null)
+              IconButton(
+                tooltip: 'Back',
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back),
+              ),
             const SpotGoLogo(),
             const Spacer(),
             IconButton(

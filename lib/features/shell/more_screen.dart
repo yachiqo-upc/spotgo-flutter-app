@@ -5,7 +5,9 @@ import '../../app/app_scope.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/cards.dart';
 import '../../core/widgets/page_layout.dart';
+import '../zones/parking_zones_screen.dart';
 import 'account_sheet.dart';
+import 'admin_shell.dart';
 import 'audit_history_screen.dart';
 
 class MoreScreen extends StatelessWidget {
@@ -28,6 +30,18 @@ class MoreScreen extends StatelessWidget {
             ),
             SectionCard(
               children: [
+                InfoRow(
+                  key: const Key('more-zones'),
+                  title: 'My parking zones',
+                  subtitle:
+                      '${admin.zones.length} zones · ${admin.totalSpots} spots',
+                  trailingWidget: chevron,
+                  onTap: () => Navigator.of(context).push(
+                    AdminShellState.moreSectionRoute(
+                      const ParkingZonesScreen(),
+                    ),
+                  ),
+                ),
                 InfoRow(
                   key: const Key('more-audit'),
                   title: 'Audit history',

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../app/app_scope.dart';
 import '../../core/widgets/state_views.dart';
@@ -40,9 +41,40 @@ class AdminShellState extends State<AdminShell> {
   Timer? _liveTimer;
   AdminTab _tab = AdminTab.dashboard;
 
+  final _moreNavigatorKey = GlobalKey<NavigatorState>();
+
   AdminTab get tab => _tab;
 
-  void selectTab(AdminTab tab) => setState(() => _tab = tab);
+  void selectTab(AdminTab tab) {
+    if (tab == AdminTab.more && _tab == AdminTab.more) {
+      _moreNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+    }
+    setState(() => _tab = tab);
+  }
+
+  /// Sections of the More tab keep the bottom navigation, as in the mockups.
+  static Route<void> moreSectionRoute(Widget page) =>
+      MaterialPageRoute<void>(builder: (_) => Scaffold(body: page));
+
+  void openMoreSection(Widget page) {
+    setState(() => _tab = AdminTab.more);
+    final navigator = _moreNavigatorKey.currentState;
+    if (navigator == null) return;
+    navigator.popUntil((route) => route.isFirst);
+    navigator.push(moreSectionRoute(page));
+  }
+
+  void _handleBack(bool didPop, Object? result) {
+    if (didPop) return;
+    final navigator = _moreNavigatorKey.currentState;
+    if (_tab == AdminTab.more && navigator != null && navigator.canPop()) {
+      navigator.pop();
+    } else if (_tab != AdminTab.dashboard) {
+      setState(() => _tab = AdminTab.dashboard);
+    } else {
+      SystemNavigator.pop();
+    }
+  }
 
   @override
   void initState() {
@@ -71,14 +103,21 @@ class AdminShellState extends State<AdminShell> {
     AdminTab.dashboard => const DashboardScreen(),
     AdminTab.occupancy => const OccupancyScreen(),
     AdminTab.alerts => const AlertsScreen(),
-    AdminTab.more => const MoreScreen(),
+    AdminTab.more => Navigator(
+      key: _moreNavigatorKey,
+      onGenerateRoute: (_) =>
+          MaterialPageRoute<void>(builder: (_) => const MoreScreen()),
+    ),
   };
 
   @override
   Widget build(BuildContext context) {
     return AdminScope(
       controller: _controller,
-      child: Scaffold(
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: _handleBack,
+        child: Scaffold(
         body: SafeArea(
           bottom: false,
           child: ListenableBuilder(
@@ -125,6 +164,7 @@ class AdminShellState extends State<AdminShell> {
               label: 'More',
             ),
           ],
+        ),
         ),
       ),
     );
