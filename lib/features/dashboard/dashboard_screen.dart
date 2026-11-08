@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/admin_navigation.dart';
 import '../../app/app_scope.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
@@ -8,6 +9,7 @@ import '../../core/widgets/page_layout.dart';
 import '../../core/widgets/state_views.dart';
 import '../../data/models/operational_alert.dart';
 import '../../data/models/parking_spot.dart';
+import '../alerts/alert_detail_screen.dart';
 import '../shell/account_sheet.dart';
 import '../shell/admin_shell.dart';
 
@@ -163,7 +165,10 @@ class DashboardScreen extends StatelessWidget {
                             fontSize: 14,
                           ),
                         ),
-                        onTap: () => shell?.selectTab(AdminTab.alerts),
+                        onTap: () => pushAdminPage<void>(
+                          context,
+                          AlertDetailScreen(alertId: alert.id),
+                        ),
                       ),
                   ],
                 ),

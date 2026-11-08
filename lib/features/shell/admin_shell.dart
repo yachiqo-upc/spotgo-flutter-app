@@ -3,14 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../app/app_scope.dart';
-import '../../core/widgets/page_layout.dart';
 import '../../core/widgets/state_views.dart';
 import '../../data/models/admin_account.dart';
 import '../../data/repositories/parking_repository.dart';
 import '../../state/admin_controller.dart';
+import '../alerts/alerts_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../occupancy/occupancy_screen.dart';
-import 'account_sheet.dart';
 import 'more_screen.dart';
 
 enum AdminTab { dashboard, occupancy, alerts, more }
@@ -71,7 +70,7 @@ class AdminShellState extends State<AdminShell> {
   Widget _tabBody(AdminTab tab) => switch (tab) {
     AdminTab.dashboard => const DashboardScreen(),
     AdminTab.occupancy => const OccupancyScreen(),
-    AdminTab.alerts => const _PlannedTab(title: 'Operational alerts'),
+    AdminTab.alerts => const AlertsScreen(),
     AdminTab.more => const MoreScreen(),
   };
 
@@ -126,25 +125,6 @@ class AdminShellState extends State<AdminShell> {
               label: 'More',
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PlannedTab extends StatelessWidget {
-  const _PlannedTab({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: PageContainer(
-        child: ScreenHeader(
-          title: title,
-          subtitle: 'Section under construction',
-          onProfileTap: () => showAccountSheet(context),
         ),
       ),
     );
