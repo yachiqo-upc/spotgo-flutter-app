@@ -77,7 +77,8 @@ class GuestSession {
   Duration elapsed(DateTime now) => (exitAt ?? now).difference(entryAt);
 
   bool isOverstay(DateTime now) =>
-      !isClosed && (exitAt ?? now).isAfter(expectedCheckout.add(overstayTolerance));
+      !isClosed &&
+      (exitAt ?? now).isAfter(expectedCheckout.add(overstayTolerance));
 
   bool hasIssue(DateTime now) =>
       status == GuestSessionStatus.pendingReview || isOverstay(now);

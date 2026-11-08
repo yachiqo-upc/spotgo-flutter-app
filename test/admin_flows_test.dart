@@ -12,8 +12,14 @@ Widget _app() => SpotGoAdminApp(
 );
 
 Future<void> _signIn(WidgetTester tester) async {
-  await tester.enterText(find.byKey(const Key('login-email')), 'admin@spotgo.pe');
-  await tester.enterText(find.byKey(const Key('login-password')), 'SpotGo2026!');
+  await tester.enterText(
+    find.byKey(const Key('login-email')),
+    'admin@spotgo.pe',
+  );
+  await tester.enterText(
+    find.byKey(const Key('login-password')),
+    'SpotGo2026!',
+  );
   final submit = find.byKey(const Key('login-submit'));
   await tester.ensureVisible(submit);
   await tester.tap(submit);
@@ -31,7 +37,9 @@ Future<void> _selectTab(WidgetTester tester, String label) async {
 }
 
 void main() {
-  testWidgets('login reaches the dashboard and its live metrics', (tester) async {
+  testWidgets('login reaches the dashboard and its live metrics', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.5;
     addTearDown(tester.view.reset);
@@ -142,6 +150,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final exit = find.byKey(const Key('guest-register-exit'));
+    ScaffoldMessenger.of(tester.element(exit)).removeCurrentSnackBar();
+    await tester.pumpAndSettle();
     await tester.ensureVisible(exit);
     await tester.tap(exit);
     await tester.pumpAndSettle();

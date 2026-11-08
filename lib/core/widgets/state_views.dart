@@ -49,7 +49,9 @@ class ErrorView extends StatelessWidget {
             if (onRetry != null) ...[
               const SizedBox(height: 16),
               OutlinedButton(
-                style: OutlinedButton.styleFrom(minimumSize: const Size(140, 44)),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(140, 44),
+                ),
                 onPressed: onRetry,
                 child: const Text('Retry'),
               ),

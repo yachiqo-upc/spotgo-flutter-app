@@ -140,7 +140,8 @@ class _OccupancyScreenState extends State<OccupancyScreen> {
               ChoiceChipBar<String?>(
                 options: [
                   const ChipOption(null, 'All zones'),
-                  for (final zone in admin.zones) ChipOption(zone.id, zone.name),
+                  for (final zone in admin.zones)
+                    ChipOption(zone.id, zone.name),
                 ],
                 selected: _zoneId,
                 onSelected: (value) => setState(() => _zoneId = value),

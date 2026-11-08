@@ -11,8 +11,14 @@ Widget buildApp() => SpotGoAdminApp(
   liveRefreshInterval: null,
 );
 
-Future<void> signIn(WidgetTester tester, {String password = 'SpotGo2026!'}) async {
-  await tester.enterText(find.byKey(const Key('login-email')), 'admin@spotgo.pe');
+Future<void> signIn(
+  WidgetTester tester, {
+  String password = 'SpotGo2026!',
+}) async {
+  await tester.enterText(
+    find.byKey(const Key('login-email')),
+    'admin@spotgo.pe',
+  );
   await tester.enterText(find.byKey(const Key('login-password')), password);
   await tester.ensureVisible(find.byKey(const Key('login-submit')));
   await tester.tap(find.byKey(const Key('login-submit')));

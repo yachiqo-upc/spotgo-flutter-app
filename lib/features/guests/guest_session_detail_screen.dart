@@ -374,7 +374,10 @@ class _CheckoutCard extends StatelessWidget {
               color: AppColors.dangerMuted,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(error!, style: const TextStyle(color: AppColors.danger)),
+            child: Text(
+              error!,
+              style: const TextStyle(color: AppColors.danger),
+            ),
           ),
           const SizedBox(height: 12),
         ],

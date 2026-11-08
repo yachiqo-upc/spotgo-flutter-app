@@ -13,11 +13,10 @@ import '../domain/parking_rules.dart';
 /// cases through [ParkingRepository]. Screens listen through `AdminScope`.
 class AdminController extends ChangeNotifier {
   AdminController({
-    required ParkingRepository repository,
+    required this._repository,
     required this.account,
     DateTime Function()? clock,
-  }) : _repository = repository,
-       _clock = clock ?? DateTime.now;
+  }) : _clock = clock ?? DateTime.now;
 
   final ParkingRepository _repository;
   final AdminAccount account;
@@ -77,7 +76,8 @@ class AdminController extends ChangeNotifier {
     try {
       _snapshot = await _repository.fetchSnapshot();
     } catch (_) {
-      _error = 'Could not load the parking data. Check the connection and retry.';
+      _error =
+          'Could not load the parking data. Check the connection and retry.';
     } finally {
       _loading = false;
       _notify();

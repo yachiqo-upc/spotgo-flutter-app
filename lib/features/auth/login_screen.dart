@@ -35,9 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
-    await AppScope.of(
-      context,
-    ).auth.signIn(_emailController.text, _passwordController.text);
+    await AppScope.of(context).auth
+        .signIn(_emailController.text, _passwordController.text);
   }
 
   void _showForgotPassword() {
@@ -173,7 +172,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? const SizedBox(
                               width: 22,
                               height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2.4),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                              ),
                             )
                           : const Text('Sign in'),
                     ),

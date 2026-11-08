@@ -97,7 +97,7 @@ class SectionTitle extends StatelessWidget {
           Expanded(
             child: Text(text, style: Theme.of(context).textTheme.titleMedium),
           ),
-          if (trailing != null) trailing!,
+          ?trailing,
         ],
       ),
     );

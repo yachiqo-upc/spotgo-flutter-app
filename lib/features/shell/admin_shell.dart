@@ -118,53 +118,52 @@ class AdminShellState extends State<AdminShell> {
         canPop: false,
         onPopInvokedWithResult: _handleBack,
         child: Scaffold(
-        body: SafeArea(
-          bottom: false,
-          child: ListenableBuilder(
-            listenable: _controller,
-            builder: (context, _) {
-              if (!_controller.hasData) {
-                if (_controller.error != null) {
-                  return ErrorView(
-                    message: _controller.error!,
-                    onRetry: _controller.load,
-                  );
+          body: SafeArea(
+            bottom: false,
+            child: ListenableBuilder(
+              listenable: _controller,
+              builder: (context, _) {
+                if (!_controller.hasData) {
+                  if (_controller.error != null) {
+                    return ErrorView(
+                      message: _controller.error!,
+                      onRetry: _controller.load,
+                    );
+                  }
+                  return const LoadingView(message: 'Loading parking data...');
                 }
-                return const LoadingView(message: 'Loading parking data...');
-              }
-              return IndexedStack(
-                index: _tab.index,
-                children: [for (final tab in AdminTab.values) _tabBody(tab)],
-              );
-            },
+                return IndexedStack(
+                  index: _tab.index,
+                  children: [for (final tab in AdminTab.values) _tabBody(tab)],
+                );
+              },
+            ),
           ),
-        ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _tab.index,
-          onDestinationSelected: (index) =>
-              selectTab(AdminTab.values[index]),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.directions_car_outlined),
-              selectedIcon: Icon(Icons.directions_car),
-              label: 'Dashboard',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.location_on_outlined),
-              selectedIcon: Icon(Icons.location_on),
-              label: 'Occupancy',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.notifications_none),
-              selectedIcon: Icon(Icons.notifications),
-              label: 'Alerts',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.more_horiz),
-              label: 'More',
-            ),
-          ],
-        ),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _tab.index,
+            onDestinationSelected: (index) => selectTab(AdminTab.values[index]),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.directions_car_outlined),
+                selectedIcon: Icon(Icons.directions_car),
+                label: 'Dashboard',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.location_on_outlined),
+                selectedIcon: Icon(Icons.location_on),
+                label: 'Occupancy',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.notifications_none),
+                selectedIcon: Icon(Icons.notifications),
+                label: 'Alerts',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.more_horiz),
+                label: 'More',
+              ),
+            ],
+          ),
         ),
       ),
     );

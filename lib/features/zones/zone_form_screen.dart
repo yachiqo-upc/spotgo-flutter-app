@@ -162,9 +162,8 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
     try {
       await AdminScope.of(context).saveZone(draft);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${draft.name} saved')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('${draft.name} saved')));
       Navigator.of(context).pop();
     } on ParkingRuleException catch (e) {
       if (mounted) setState(() => _error = e.message);

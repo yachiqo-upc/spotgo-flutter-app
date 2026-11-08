@@ -35,12 +35,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
       _AlertFilter.all => pending,
       _AlertFilter.critical =>
         pending.where((alert) => alert.isCritical).toList(),
-      _AlertFilter.sensor => pending
-          .where((alert) => alert.type.category == AlertCategory.sensor)
-          .toList(),
-      _AlertFilter.payment => pending
-          .where((alert) => alert.type.category == AlertCategory.payment)
-          .toList(),
+      _AlertFilter.sensor =>
+        pending
+            .where((alert) => alert.type.category == AlertCategory.sensor)
+            .toList(),
+      _AlertFilter.payment =>
+        pending
+            .where((alert) => alert.type.category == AlertCategory.payment)
+            .toList(),
       _AlertFilter.resolved => const <OperationalAlert>[],
     };
   }
@@ -67,8 +69,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
               children: [
                 ScreenHeader(
                   title: 'Operational alerts',
-                  subtitle:
-                      'Sensor, occupancy, payment and reservation issues',
+                  subtitle: 'Sensor, occupancy, payment and reservation issues',
                   onProfileTap: () => showAccountSheet(context),
                 ),
                 SingleChildScrollView(

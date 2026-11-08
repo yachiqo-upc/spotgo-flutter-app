@@ -59,33 +59,105 @@ abstract final class MockSeed {
 
     final spots = [
       spot('A-01', SpotType.standard),
-      spot('A-02', SpotType.standard, occupancy: occ, reservation: act, reservationCode: 'SG-4790'),
+      spot(
+        'A-02',
+        SpotType.standard,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4790',
+      ),
       spot('A-03', SpotType.ev, reservation: res, reservationCode: 'SG-4821'),
       spot('A-04', SpotType.accessible),
-      spot('A-05', SpotType.standard, occupancy: occ, reservation: act, reservationCode: 'SG-4802'),
+      spot(
+        'A-05',
+        SpotType.standard,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4802',
+      ),
       spot('A-06', SpotType.standard, occupancy: occ, guest: 'GP-1046'),
       spot('A-07', SpotType.standard, occupancy: occ),
       spot('A-08', SpotType.standard),
       spot('B-01', SpotType.covered, occupancy: occ, guest: 'GP-1048'),
-      spot('B-02', SpotType.covered, occupancy: occ, reservation: act, reservationCode: 'SG-4811'),
+      spot(
+        'B-02',
+        SpotType.covered,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4811',
+      ),
       spot('B-03', SpotType.standard, occupancy: occ, guest: 'GP-1049'),
       spot('B-04', SpotType.covered),
-      spot('B-05', SpotType.standard, occupancy: occ, reservation: act, reservationCode: 'SG-4815'),
-      spot('B-06', SpotType.covered, reservation: res, reservationCode: 'SG-4830'),
-      spot('B-07', SpotType.standard, occupancy: occ, reservation: act, reservationCode: 'SG-4818'),
+      spot(
+        'B-05',
+        SpotType.standard,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4815',
+      ),
+      spot(
+        'B-06',
+        SpotType.covered,
+        reservation: res,
+        reservationCode: 'SG-4830',
+      ),
+      spot(
+        'B-07',
+        SpotType.standard,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4818',
+      ),
       spot('B-08', SpotType.standard, health: SensorHealth.failed),
-      spot('C-01', SpotType.standard, occupancy: occ, reservation: act, reservationCode: 'SG-4820'),
+      spot(
+        'C-01',
+        SpotType.standard,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4820',
+      ),
       spot('C-02', SpotType.standard),
-      spot('C-03', SpotType.accessible, occupancy: occ, reservation: act, reservationCode: 'SG-4823'),
-      spot('C-04', SpotType.standard, occupancy: occ, reservation: act, reservationCode: 'SG-4825'),
-      spot('C-05', SpotType.standard, health: SensorHealth.failed, guest: 'GP-1047'),
+      spot(
+        'C-03',
+        SpotType.accessible,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4823',
+      ),
+      spot(
+        'C-04',
+        SpotType.standard,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4825',
+      ),
+      spot(
+        'C-05',
+        SpotType.standard,
+        health: SensorHealth.failed,
+        guest: 'GP-1047',
+      ),
       spot('C-06', SpotType.ev),
-      spot('C-07', SpotType.standard, occupancy: occ, reservation: act, reservationCode: 'SG-4827'),
-      spot('C-08', SpotType.standard, occupancy: occ, reservation: act, reservationCode: 'SG-4828'),
+      spot(
+        'C-07',
+        SpotType.standard,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4827',
+      ),
+      spot(
+        'C-08',
+        SpotType.standard,
+        occupancy: occ,
+        reservation: act,
+        reservationCode: 'SG-4828',
+      ),
     ];
 
-    List<String> idsOf(String prefix) =>
-        [for (final s in spots) if (s.code.startsWith(prefix)) s.id];
+    List<String> idsOf(String prefix) => [
+      for (final s in spots)
+        if (s.code.startsWith(prefix)) s.id,
+    ];
 
     final zones = [
       ParkingZone(
@@ -260,7 +332,11 @@ abstract final class MockSeed {
         classification: classification,
         actionTaken: action,
         history: [
-          AlertEvent(at: detected, actor: 'System', description: 'Alert created'),
+          AlertEvent(
+            at: detected,
+            actor: 'System',
+            description: 'Alert created',
+          ),
           if (status == AlertStatus.resolved)
             AlertEvent(
               at: detected.add(const Duration(minutes: 12)),

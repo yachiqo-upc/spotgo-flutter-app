@@ -144,6 +144,7 @@ class _NewGuestSessionScreenState extends State<NewGuestSessionScreen> {
                         child: DropdownButtonFormField<VehicleType>(
                           key: const Key('guest-vehicle-type'),
                           initialValue: _vehicleType,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Vehicle type',
                           ),
@@ -234,6 +235,7 @@ class _NewGuestSessionScreenState extends State<NewGuestSessionScreen> {
                         child: DropdownButtonFormField<Duration>(
                           key: const Key('guest-duration'),
                           initialValue: _duration,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Expected duration',
                           ),

@@ -62,7 +62,10 @@ class MockParkingRepository implements ParkingRepository {
   }
 
   @override
-  Future<ParkingZone> saveZone(ParkingZone zone, {required String actor}) async {
+  Future<ParkingZone> saveZone(
+    ParkingZone zone, {
+    required String actor,
+  }) async {
     await _delay();
     if (zone.name.trim().length < 3) {
       throw const ParkingRuleException('Zone name is required');
@@ -88,7 +91,9 @@ class MockParkingRepository implements ParkingRepository {
       throw const ParkingRuleException('Select at least one spot type');
     }
     if (zone.authorizedProfiles.isEmpty) {
-      throw const ParkingRuleException('Select at least one authorized profile');
+      throw const ParkingRuleException(
+        'Select at least one authorized profile',
+      );
     }
 
     final isNew = zone.id.isEmpty;
@@ -182,7 +187,9 @@ class MockParkingRepository implements ParkingRepository {
     final spot = _spot(draft.spotId);
     final zone = _zones.where((z) => z.id == spot.zoneId).firstOrNull;
     if (zone == null) {
-      throw ParkingRuleException('Spot ${spot.code} is not assigned to a zone.');
+      throw ParkingRuleException(
+        'Spot ${spot.code} is not assigned to a zone.',
+      );
     }
     ParkingRules.ensureGuestSpotAvailable(spot, zone);
 
@@ -258,9 +265,8 @@ class MockParkingRepository implements ParkingRepository {
     }
     final cleanReference = reference?.trim();
     if (cleanReference != null &&
-        RegExp(
-          r'\d{12,19}',
-        ).hasMatch(cleanReference.replaceAll(RegExp(r'[\s.-]'), ''))) {
+        RegExp(r'\d{12,19}')
+            .hasMatch(cleanReference.replaceAll(RegExp(r'[\s.-]'), ''))) {
       throw const ParkingRuleException(
         'Do not enter card numbers. Use the receipt or voucher number only.',
       );

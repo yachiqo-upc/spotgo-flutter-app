@@ -63,9 +63,10 @@ abstract final class ParkingRules {
 
   /// Physically occupied spots according to reliable sensor readings only;
   /// reservations and guest sessions do not count as presence (US05).
-  static int physicallyOccupied(List<ParkingSpot> spots) => operationalSpots(
-    spots,
-  ).where((s) => s.occupancy == OccupancyStatus.occupied).length;
+  static int physicallyOccupied(List<ParkingSpot> spots) =>
+      operationalSpots(spots)
+          .where((s) => s.occupancy == OccupancyStatus.occupied)
+          .length;
 
   /// Occupancy ratio over operational spots (unavailable spots excluded).
   static double occupancyRatio(List<ParkingSpot> spots) {

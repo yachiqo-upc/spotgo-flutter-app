@@ -165,7 +165,11 @@ class _DrivingLane extends StatelessWidget {
           child: const Row(
             children: [
               Expanded(child: Divider(color: AppColors.textSecondary)),
-              Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
             ],
           ),
         ),
@@ -196,7 +200,10 @@ class SpotTile extends StatelessWidget {
         AppColors.spotAvailable,
         AppColors.onPrimary,
       ),
-      SpotAvailability.reserved => (AppColors.spotReserved, AppColors.onPrimary),
+      SpotAvailability.reserved => (
+        AppColors.spotReserved,
+        AppColors.onPrimary,
+      ),
       SpotAvailability.occupied => (
         AppColors.spotOccupied,
         AppColors.textPrimary,
@@ -206,7 +213,8 @@ class SpotTile extends StatelessWidget {
         AppColors.textPrimary,
       ),
     };
-    final Color? borderColor = spot.hasUnvalidatedOccupancy ||
+    final Color? borderColor =
+        spot.hasUnvalidatedOccupancy ||
             availability == SpotAvailability.unavailable
         ? AppColors.danger
         : null;

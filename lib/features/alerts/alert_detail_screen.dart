@@ -106,7 +106,7 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
         action: _actionController.text.trim(),
         actionCompleted: _actionCompleted,
       );
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -118,13 +118,13 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
       );
       Navigator.of(context).pop();
     } on ParkingRuleException catch (error) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       setState(() {
         _saving = false;
         _error = error.message;
       });
     } catch (_) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       setState(() {
         _saving = false;
         _error = 'Could not update this alert. Please try again.';
@@ -170,7 +170,8 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
                             minLines: 2,
                             maxLines: 4,
                             textCapitalization: TextCapitalization.sentences,
-                            validator: (value) => (value ?? '').trim().length <
+                            validator: (value) =>
+                                (value ?? '').trim().length <
                                     ParkingRules.minActionLength
                                 ? 'Describe the action taken (at least 5 characters)'
                                 : null,
@@ -213,7 +214,9 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
                         const SizedBox(height: 14),
                         FilledButton(
                           key: const Key('alert-submit'),
-                          onPressed: _saving ? null : () => _submit(admin, alert),
+                          onPressed: _saving
+                              ? null
+                              : () => _submit(admin, alert),
                           child: _saving
                               ? const SizedBox(
                                   width: 20,

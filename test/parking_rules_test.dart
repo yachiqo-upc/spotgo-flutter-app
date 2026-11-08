@@ -71,14 +71,24 @@ void main() {
       expect(amount(entry.add(const Duration(minutes: 30))), 4);
       expect(amount(entry.add(const Duration(minutes: 31))), 8);
       expect(
-        amount(entry.add(const Duration(minutes: 21)), rate: 7.33, fraction: 20),
+        amount(
+          entry.add(const Duration(minutes: 21)),
+          rate: 7.33,
+          fraction: 20,
+        ),
         4.89,
       );
     });
 
     test('rejects nonpositive billing fractions', () {
-      expect(() => amount(entry, fraction: 0), throwsA(isA<ParkingRuleException>()));
-      expect(() => amount(entry, fraction: -1), throwsA(isA<ParkingRuleException>()));
+      expect(
+        () => amount(entry, fraction: 0),
+        throwsA(isA<ParkingRuleException>()),
+      );
+      expect(
+        () => amount(entry, fraction: -1),
+        throwsA(isA<ParkingRuleException>()),
+      );
     });
   });
 
@@ -124,7 +134,10 @@ void main() {
   });
 
   test('conflicting spots exclude the zone being edited', () {
-    final zones = [_zone('Z-A', ['A-01']), _zone('Z-B', ['B-01'])];
+    final zones = [
+      _zone('Z-A', ['A-01']),
+      _zone('Z-B', ['B-01']),
+    ];
     expect(
       ParkingRules.conflictingSpots(
         zoneId: 'Z-A',
@@ -156,73 +169,84 @@ void main() {
     expect(error('Sensor offline', 'Reset sensor', true), isNull);
   });
 
-  test('spot availability keeps sensor, reservation and guest states distinct', () {
-    expect(_spot('free').availability, SpotAvailability.available);
-    expect(
-      _spot('reserved', reservation: ReservationState.reserved).availability,
-      SpotAvailability.reserved,
-    );
-    expect(
-      _spot('occupied', occupancy: OccupancyStatus.occupied).availability,
-      SpotAvailability.occupied,
-    );
-    expect(
-      _spot('active', reservation: ReservationState.active).availability,
-      SpotAvailability.occupied,
-    );
-    expect(
-      _spot('guest', guestSessionId: 'GP-1').availability,
-      SpotAvailability.occupied,
-    );
-    expect(
-      _spot('failed', sensorHealth: SensorHealth.failed).availability,
-      SpotAvailability.unavailable,
-    );
-    expect(
-      _spot('unavailable', occupancy: OccupancyStatus.unavailable).availability,
-      SpotAvailability.unavailable,
-    );
-  });
+  test(
+    'spot availability keeps sensor, reservation and guest states distinct',
+    () {
+      expect(_spot('free').availability, SpotAvailability.available);
+      expect(
+        _spot('reserved', reservation: ReservationState.reserved).availability,
+        SpotAvailability.reserved,
+      );
+      expect(
+        _spot('occupied', occupancy: OccupancyStatus.occupied).availability,
+        SpotAvailability.occupied,
+      );
+      expect(
+        _spot('active', reservation: ReservationState.active).availability,
+        SpotAvailability.occupied,
+      );
+      expect(
+        _spot('guest', guestSessionId: 'GP-1').availability,
+        SpotAvailability.occupied,
+      );
+      expect(
+        _spot('failed', sensorHealth: SensorHealth.failed).availability,
+        SpotAvailability.unavailable,
+      );
+      expect(
+        _spot(
+          'unavailable',
+          occupancy: OccupancyStatus.unavailable,
+        ).availability,
+        SpotAvailability.unavailable,
+      );
+    },
+  );
 
-  test('unvalidated occupancy requires a reliable sensor and no valid link', () {
-    expect(
-      _spot('unlinked', occupancy: OccupancyStatus.occupied)
-          .hasUnvalidatedOccupancy,
-      isTrue,
-    );
-    expect(
-      _spot(
-        'reserved',
-        occupancy: OccupancyStatus.occupied,
-        reservation: ReservationState.reserved,
-      ).hasUnvalidatedOccupancy,
-      isTrue,
-    );
-    expect(
-      _spot(
-        'active',
-        occupancy: OccupancyStatus.occupied,
-        reservation: ReservationState.active,
-      ).hasUnvalidatedOccupancy,
-      isFalse,
-    );
-    expect(
-      _spot(
-        'guest',
-        occupancy: OccupancyStatus.occupied,
-        guestSessionId: 'GP-1',
-      ).hasUnvalidatedOccupancy,
-      isFalse,
-    );
-    expect(
-      _spot(
-        'failed',
-        occupancy: OccupancyStatus.occupied,
-        sensorHealth: SensorHealth.failed,
-      ).hasUnvalidatedOccupancy,
-      isFalse,
-    );
-  });
+  test(
+    'unvalidated occupancy requires a reliable sensor and no valid link',
+    () {
+      expect(
+        _spot(
+          'unlinked',
+          occupancy: OccupancyStatus.occupied,
+        ).hasUnvalidatedOccupancy,
+        isTrue,
+      );
+      expect(
+        _spot(
+          'reserved',
+          occupancy: OccupancyStatus.occupied,
+          reservation: ReservationState.reserved,
+        ).hasUnvalidatedOccupancy,
+        isTrue,
+      );
+      expect(
+        _spot(
+          'active',
+          occupancy: OccupancyStatus.occupied,
+          reservation: ReservationState.active,
+        ).hasUnvalidatedOccupancy,
+        isFalse,
+      );
+      expect(
+        _spot(
+          'guest',
+          occupancy: OccupancyStatus.occupied,
+          guestSessionId: 'GP-1',
+        ).hasUnvalidatedOccupancy,
+        isFalse,
+      );
+      expect(
+        _spot(
+          'failed',
+          occupancy: OccupancyStatus.occupied,
+          sensorHealth: SensorHealth.failed,
+        ).hasUnvalidatedOccupancy,
+        isFalse,
+      );
+    },
+  );
 
   test('guest overstay begins after the five-minute tolerance', () {
     final entry = DateTime.utc(2026, 1, 1, 12);
@@ -241,9 +265,9 @@ void main() {
     expect(session.isOverstay(limit), isFalse);
     expect(session.isOverstay(limit.add(const Duration(seconds: 1))), isTrue);
     expect(
-      session.copyWith(status: GuestSessionStatus.closed).isOverstay(
-        limit.add(const Duration(hours: 1)),
-      ),
+      session
+          .copyWith(status: GuestSessionStatus.closed)
+          .isOverstay(limit.add(const Duration(hours: 1))),
       isFalse,
     );
   });
