@@ -50,7 +50,7 @@ class _GuestSessionsScreenState extends State<GuestSessionsScreen> {
     final now = admin.now;
     final sessions = admin.guestSessions.where((s) {
       return switch (_tab) {
-        GuestTab.active => s.status == GuestSessionStatus.open,
+        GuestTab.active => !s.isClosed,
         GuestTab.completed => s.isClosed,
         GuestTab.issues => s.hasIssue(now),
       };

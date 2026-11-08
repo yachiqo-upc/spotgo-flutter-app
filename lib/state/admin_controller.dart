@@ -48,6 +48,7 @@ class AdminController extends ChangeNotifier {
   int countBy(SpotAvailability availability) =>
       spots.where((s) => s.availability == availability).length;
   double get occupancyRatio => ParkingRules.occupancyRatio(spots);
+  int get physicallyOccupied => ParkingRules.physicallyOccupied(spots);
   int get onlineSensors => spots.where((s) => s.sensorReliable).length;
   int get offlineSensors => totalSpots - onlineSensors;
   int get activeReservations =>

@@ -103,6 +103,11 @@ abstract final class MockSeed {
           SpotType.ev,
           SpotType.accessible,
         },
+        authorizedProfiles: const {
+          AccessProfile.standard,
+          AccessProfile.subscriber,
+          AccessProfile.accessible,
+        },
         spotIds: idsOf('A'),
       ),
       ParkingZone(
@@ -116,6 +121,10 @@ abstract final class MockSeed {
         billingFractionMinutes: 30,
         status: ZoneStatus.active,
         allowedTypes: const {SpotType.standard, SpotType.covered},
+        authorizedProfiles: const {
+          AccessProfile.subscriber,
+          AccessProfile.tenantStaff,
+        },
         spotIds: idsOf('B'),
       ),
       ParkingZone(
@@ -132,6 +141,10 @@ abstract final class MockSeed {
           SpotType.standard,
           SpotType.ev,
           SpotType.accessible,
+        },
+        authorizedProfiles: const {
+          AccessProfile.standard,
+          AccessProfile.accessible,
         },
         spotIds: idsOf('C'),
       ),

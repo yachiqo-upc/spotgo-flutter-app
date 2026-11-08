@@ -1,112 +1,94 @@
-# SpotGo Mobile App
+# SpotGo Parking Admin (Flutter)
 
-SpotGo Mobile App is the Android client for SpotGo, a parking management platform for drivers and parking administrators. It is built with Kotlin and Jetpack Compose and uses Material 3 Expressive for its interface.
+Multiplatform mobile app for **Parking Admin** operators of SpotGo. It lets an
+administrator provisioned by SuperAdmin monitor live occupancy, review and
+resolve operational alerts, manage parking zones and register guest parking
+sessions with exit and physical payment.
 
-## User roles
+This branch delivers about **50% of the Parking Admin module**.
 
-The application organizes navigation into two workspaces:
+## Implemented screens
 
-| Role | Navigation destinations |
-| --- | --- |
-| Driver | Explore, Reservations, Payments, Profile |
-| Parking Admin | Dashboard, Occupancy, Alerts, More |
+| # | Screen | Main behaviour | User stories |
+|---|--------|----------------|--------------|
+| – | Sign in | Provisioned Parking Admin accounts only, validation, errors, no public sign up | US09 |
+| 15 | Administrator dashboard | Occupancy, availability, open alerts, guest sessions, reservations, balances, zone and sensor status, recent alerts | US07 |
+| 16 | Live occupancy map | Spots grouped by zone, filters (All / Available / Issues, zone, search), spot detail with separate occupancy, reservation and sensor states, periodic refresh | US05, US07 |
+| 17 | Operational alerts | List with filters (All / Critical / Sensor / Payment / Resolved) | US06 |
+| 33 | Alert detail | Classification, action taken, monitoring or resolution, history | US06 |
+| 19 | Parking zones | Facility summary and zones with hours, rates and free spots | US02 |
+| 20 | Create / edit parking zone | Validated form, operating hours, rate, billing fraction, status, spot types, spot assignment with conflict detection | US02 |
+| 21 | Guest parking sessions | Active / Completed / Issues | US03 |
+| 22 | New guest session | Plate, vehicle, available spot only, expected duration | US03 |
+| 23 | Guest session details | Exit registration, amount by billing fraction, cash or external POS confirmation, closing | US03 |
 
-Each workspace has its own layout and navigation state. The login screen provides access to both workspaces.
+Also included: bottom navigation (Dashboard, Occupancy, Alerts, More), account
+sheet with sign out and an audit history of administrative changes.
 
-Create account opens Driver registration. The registration form starts with empty fields and returns to login through Sign in or the back button.
+## Business rules applied
 
-Parking administrators access parking infrastructure from More. Infrastructure connects to floor-plan upload and the digital parking map, with dedicated navigation for each view.
+- Parking Admin accounts are enabled by SuperAdmin; the app has no registration.
+- Occupancy (sensor), reservation and sensor health are independent states.
+  A spot with an unreliable sensor is shown as Unavailable and blocks guest
+  sessions.
+- A guest session needs an Available spot in an active zone, a valid plate and
+  creates no Driver account, vehicle, reservation or digital payment.
+- Closing a guest session requires the exit first and then the confirmation of
+  a physical payment (cash or external POS). Card data is never requested.
+- Amounts are charged by the zone billing fraction; overstay is flagged after
+  a 5-minute tolerance.
+- An alert is resolved only with a classification, the action taken and the
+  action marked as completed; its history is kept.
+- A high occupancy alert is raised when occupancy exceeds 95% of the
+  operational spots.
+- A spot can belong to only one zone; conflicting assignments are rejected.
+  Each zone stores its allowed spot types and authorized Driver profiles
+  (sample categories until the Profiles service is integrated).
+- Occupancy percentages use physical sensor readings only; reservations and
+  guest sessions block availability but are not counted as presence.
 
-The Parking Admin account button returns to login from Dashboard, Occupancy, Alerts, and Parking infrastructure. Driver returns to login through Sign out in Profile.
+## Architecture
 
-## Technology
-
-- Kotlin
-- Jetpack Compose
-- Material 3 Expressive
-- AndroidX Activity and Lifecycle
-- Gradle with Kotlin DSL
-- JUnit, AndroidX Test, and Compose UI testing
-
-Dependency versions are maintained in `gradle/libs.versions.toml`. Material 3 Expressive APIs used by the application are experimental.
-
-## Requirements
-
-- Android Studio with Jetpack Compose support.
-- Android SDK 37.
-- JDK 25, matching `gradle/gradle-daemon-jvm.properties`.
-- An Android device or emulator running Android 10 (API 29) or later.
-
-## Getting started
-
-1. Open the project directory in Android Studio.
-2. Install Android SDK 37 through the SDK Manager if needed.
-3. Sync the project with Gradle.
-4. Select the `app` run configuration and an Android device.
-5. Run the application.
-
-The application ID is `com.yachiqo.spotgo`.
-
-## Build and test
-
-Run the following commands from the project directory on Windows:
-
-```powershell
-# Build the debug APK
-./gradlew.bat :app:assembleDebug
-
-# Run static analysis
-./gradlew.bat :app:lintDebug
-
-# Run unit tests
-./gradlew.bat :app:testDebugUnitTest
-
-# Run instrumented UI tests
-./gradlew.bat :app:connectedDebugAndroidTest
+```
+lib/
+  app/        App root, dependency scope, navigation helper
+  core/       Theme, shared widgets, formatters
+  data/       Models, repository contracts, mock implementations
+  domain/     Pure business rules
+  features/   auth, shell, dashboard, occupancy, alerts, zones, guests
+  state/      AuthController and AdminController (ChangeNotifier)
+test/         Unit tests for rules and widget tests for the main flows
 ```
 
-On macOS or Linux, use `./gradlew` instead of `./gradlew.bat`.
+State is handled with `ChangeNotifier` controllers exposed through
+`InheritedWidget` scopes, so no extra packages are required.
 
-Instrumented tests require a connected Android device or a running emulator. The UI tests cover role navigation, tab selection, returning to the login screen, activity recreation, login and registration inputs, the administrator menu, and navigation between infrastructure, floor-plan upload, and the digital parking map.
+## Data sources
 
-The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`. Lint reports are generated under `app/build/reports/`.
+The documented SpotGo backend (`https://spotgo-backend.onrender.com`) did not
+answer its OpenAPI or Swagger endpoints (HTTP 404) during development, so no
+endpoint was assumed. The app uses `AuthRepository` and `ParkingRepository`
+contracts with **local mock implementations** (`lib/data/mock`) that hold sample
+data in memory and apply the same business rules. A REST implementation can
+replace them in `SpotGoAdminApp` without changing the screens.
 
-## Project structure
+Demo account (sample data only): `admin@spotgo.pe` / `SpotGo2026!`.
 
-```text
-app/src/main/
-|-- java/com/yachiqo/spotgo/
-|   |-- MainActivity.kt
-|   |-- presentation/
-|   |   |-- SpotGoApp.kt
-|   |   |-- login/
-|   |   |-- driver/
-|   |   |-- parking_admin/
-|   |   `-- common/
-|   `-- ui/theme/
-`-- res/
-    |-- drawable/
-    |-- font/
-    `-- values/
+## Running
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+flutter build apk
 ```
 
-- `presentation/login`: login and registration interfaces and input state.
-- `presentation/driver`: Driver workspace and navigation destinations.
-- `presentation/parking_admin`: Parking Admin workspace and navigation destinations.
-- `presentation/common`: shared interface components.
-- `ui/theme`: application colors, typography, and Material theme.
-- `res`: localized string resources, icons, and fonts.
+## Pending for the complete module
 
-Workspace layouts apply system insets, manage their navigation bars, and connect their screens through local navigation. The optional `content` callback supports composing screens within a workspace. Role, tab, and administrator view selections are preserved across activity recreation.
-
-## Design
-
-The interface follows the [SpotGo design in Figma](https://www.figma.com/design/sQ2XbvLctkCFweIj0w0SjQ/SpotGo-Design).
-
-SpotGo uses a dark color palette with yellow accents and the Plus Jakarta Sans typeface. Fonts and icons are packaged with the application. Design exports and the font license are stored in `docs/design/`.
-
-## Contributing
-
-Keep source code, identifiers, comments, interface text, and documentation in English. Add user-facing text to string resources under `app/src/main/res/values/` and reuse the application theme and shared components.
-
-Place screens in the appropriate role package and connect them to the corresponding workspace destination. Run the relevant build, lint, and test commands before submitting changes.
+- Occupancy reports (18), parking infrastructure, digital map and floor plan
+  upload (24, 25, 36), zone assignments and driver profiles (31), zone
+  occupancy detail (32), B2B billing (26, 41).
+- REST integration with the SpotGo backend, Google sign in and persistent
+  session ("keep me signed in").
+- Real-time sensor events (MQTT/HTTP) and push notifications.

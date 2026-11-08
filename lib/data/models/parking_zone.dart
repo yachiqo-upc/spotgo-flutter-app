@@ -9,6 +9,19 @@ enum ZoneStatus {
   final String label;
 }
 
+/// Driver profile categories that may use a zone (US02). Sample categories
+/// until the Profiles service exposes the real catalogue.
+enum AccessProfile {
+  standard('Standard Drivers'),
+  subscriber('Plan subscribers'),
+  accessible('Accessible permit'),
+  tenantStaff('Tenant staff');
+
+  const AccessProfile(this.label);
+
+  final String label;
+}
+
 class ParkingZone {
   const ParkingZone({
     required this.id,
@@ -21,6 +34,7 @@ class ParkingZone {
     required this.billingFractionMinutes,
     required this.status,
     required this.allowedTypes,
+    required this.authorizedProfiles,
     required this.spotIds,
   });
 
@@ -36,6 +50,7 @@ class ParkingZone {
   final int billingFractionMinutes;
   final ZoneStatus status;
   final Set<SpotType> allowedTypes;
+  final Set<AccessProfile> authorizedProfiles;
   final List<String> spotIds;
 
   int get totalSpots => spotIds.length;
@@ -51,6 +66,7 @@ class ParkingZone {
     int? billingFractionMinutes,
     ZoneStatus? status,
     Set<SpotType>? allowedTypes,
+    Set<AccessProfile>? authorizedProfiles,
     List<String>? spotIds,
   }) {
     return ParkingZone(
@@ -65,6 +81,7 @@ class ParkingZone {
           billingFractionMinutes ?? this.billingFractionMinutes,
       status: status ?? this.status,
       allowedTypes: allowedTypes ?? this.allowedTypes,
+      authorizedProfiles: authorizedProfiles ?? this.authorizedProfiles,
       spotIds: spotIds ?? this.spotIds,
     );
   }

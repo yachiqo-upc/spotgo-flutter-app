@@ -34,6 +34,7 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
   int? _closesAt;
   ZoneStatus _status = ZoneStatus.active;
   final Set<SpotType> _types = {};
+  final Set<AccessProfile> _profiles = {};
   final List<String> _spotIds = [];
   bool _initialized = false;
   bool _saving = false;
@@ -64,6 +65,7 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
       _closesAt = zone.closesAtMinutes;
       _status = zone.status;
       _types.addAll(zone.allowedTypes);
+      _profiles.addAll(zone.authorizedProfiles);
       _spotIds.addAll(zone.spotIds);
     } else {
       _district.text = admin.district;
@@ -71,6 +73,7 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
       _opensAt = 7 * 60;
       _closesAt = 23 * 60;
       _types.add(SpotType.standard);
+      _profiles.add(AccessProfile.standard);
     }
   }
 
@@ -112,6 +115,7 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
     final hours = ParkingRules.validateOperatingHours(_opensAt, _closesAt);
     if (hours != null) return hours;
     if (_types.isEmpty) return 'Select at least one allowed spot type';
+    if (_profiles.isEmpty) return 'Select at least one authorized profile';
     if (_spotIds.isEmpty) return 'Assign at least one parking spot';
     final admin = AdminScope.of(context);
     for (final id in _spotIds) {
@@ -150,6 +154,7 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
       billingFractionMinutes: int.parse(_fraction.text),
       status: _status,
       allowedTypes: Set.of(_types),
+      authorizedProfiles: Set.of(_profiles),
       spotIds: List.of(_spotIds),
     );
 
@@ -277,7 +282,9 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
                         final rate = double.tryParse(
                           (v ?? '').replaceAll(',', '.'),
                         );
-                        if (rate == null) return 'Enter a rate';
+                        if (rate == null || !rate.isFinite) {
+                          return 'Enter a rate';
+                        }
                         if (rate <= 0) return 'Must be positive';
                         return null;
                       },
@@ -319,6 +326,24 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
                           selected: _types.contains(type),
                           onTap: () => setState(() {
                             if (!_types.remove(type)) _types.add(type);
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SectionTitle('Authorized Driver profiles'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final profile in AccessProfile.values)
+                        SelectableChip(
+                          key: Key('zone-profile-${profile.name}'),
+                          label: profile.label,
+                          selected: _profiles.contains(profile),
+                          onTap: () => setState(() {
+                            if (!_profiles.remove(profile)) {
+                              _profiles.add(profile);
+                            }
                           }),
                         ),
                     ],

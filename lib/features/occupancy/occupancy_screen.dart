@@ -10,6 +10,7 @@ import '../../core/widgets/state_views.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../data/models/parking_spot.dart';
 import '../../data/models/parking_zone.dart';
+import '../../domain/parking_rules.dart';
 import '../guests/new_guest_session_screen.dart';
 import '../shell/account_sheet.dart';
 import 'spot_widgets.dart';
@@ -58,9 +59,7 @@ class _OccupancyScreenState extends State<OccupancyScreen> {
     final scopeSpots = _zoneId == null
         ? admin.spots
         : admin.spotsOfZone(_zoneId!);
-    final occupied = scopeSpots
-        .where((s) => s.availability == SpotAvailability.occupied)
-        .length;
+    final occupied = ParkingRules.physicallyOccupied(scopeSpots);
     final available = scopeSpots
         .where((s) => s.availability == SpotAvailability.available)
         .length;

@@ -22,7 +22,7 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final admin = AdminScope.of(context);
     final shell = AdminShell.maybeOf(context);
-    final occupied = admin.countBy(SpotAvailability.occupied);
+    final occupied = admin.physicallyOccupied;
     final available = admin.countBy(SpotAvailability.available);
     final reserved = admin.countBy(SpotAvailability.reserved);
     final sensorRatio = admin.totalSpots == 0

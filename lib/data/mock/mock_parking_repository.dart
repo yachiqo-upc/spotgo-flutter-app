@@ -43,6 +43,7 @@ class MockParkingRepository implements ParkingRepository {
       failFirstFetch = false;
       throw Exception('Service temporarily unavailable');
     }
+    _evaluateHighOccupancy();
     return ParkingSnapshot(
       facilityName: MockSeed.facilityName,
       district: MockSeed.district,
@@ -66,12 +67,15 @@ class MockParkingRepository implements ParkingRepository {
     if (zone.name.trim().length < 3) {
       throw const ParkingRuleException('Zone name is required');
     }
+    if (zone.address.trim().length < 3 || zone.district.trim().length < 3) {
+      throw const ParkingRuleException('Address and district are required');
+    }
     final hoursError = ParkingRules.validateOperatingHours(
       zone.opensAtMinutes,
       zone.closesAtMinutes,
     );
     if (hoursError != null) throw ParkingRuleException(hoursError);
-    if (zone.ratePerHour <= 0) {
+    if (!zone.ratePerHour.isFinite || zone.ratePerHour <= 0) {
       throw const ParkingRuleException('Rate per hour must be positive');
     }
     if (zone.billingFractionMinutes <= 0) {
@@ -82,6 +86,9 @@ class MockParkingRepository implements ParkingRepository {
     }
     if (zone.allowedTypes.isEmpty) {
       throw const ParkingRuleException('Select at least one spot type');
+    }
+    if (zone.authorizedProfiles.isEmpty) {
+      throw const ParkingRuleException('Select at least one authorized profile');
     }
 
     final isNew = zone.id.isEmpty;
@@ -129,6 +136,7 @@ class MockParkingRepository implements ParkingRepository {
             billingFractionMinutes: zone.billingFractionMinutes,
             status: zone.status,
             allowedTypes: Set.unmodifiable(zone.allowedTypes),
+            authorizedProfiles: Set.unmodifiable(zone.authorizedProfiles),
             spotIds: List.unmodifiable(zone.spotIds),
           )
         : zone;
@@ -250,7 +258,9 @@ class MockParkingRepository implements ParkingRepository {
     }
     final cleanReference = reference?.trim();
     if (cleanReference != null &&
-        RegExp(r'\d{12,19}').hasMatch(cleanReference.replaceAll(' ', ''))) {
+        RegExp(
+          r'\d{12,19}',
+        ).hasMatch(cleanReference.replaceAll(RegExp(r'[\s.-]'), ''))) {
       throw const ParkingRuleException(
         'Do not enter card numbers. Use the receipt or voucher number only.',
       );
@@ -391,7 +401,8 @@ class MockParkingRepository implements ParkingRepository {
   String _zoneSummary(ParkingZone zone) =>
       '${zone.name}, ${zone.totalSpots} spots, '
       'S/ ${zone.ratePerHour.toStringAsFixed(2)}/h, '
-      '${zone.billingFractionMinutes} min, ${zone.status.label}';
+      '${zone.billingFractionMinutes} min, ${zone.status.label}, '
+      'profiles: ${zone.authorizedProfiles.map((p) => p.label).join('/')}';
 
   void _log(String actor, String action, String before, String after) {
     _audit.add(

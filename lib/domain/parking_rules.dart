@@ -54,16 +54,24 @@ abstract final class ParkingRules {
     return (amount * 100).roundToDouble() / 100;
   }
 
+  /// Spots with a reliable sensor reading (operational for monitoring).
+  static List<ParkingSpot> operationalSpots(List<ParkingSpot> spots) => spots
+      .where(
+        (s) => s.sensorReliable && s.occupancy != OccupancyStatus.unavailable,
+      )
+      .toList();
+
+  /// Physically occupied spots according to reliable sensor readings only;
+  /// reservations and guest sessions do not count as presence (US05).
+  static int physicallyOccupied(List<ParkingSpot> spots) => operationalSpots(
+    spots,
+  ).where((s) => s.occupancy == OccupancyStatus.occupied).length;
+
   /// Occupancy ratio over operational spots (unavailable spots excluded).
   static double occupancyRatio(List<ParkingSpot> spots) {
-    final operational = spots
-        .where((s) => s.availability != SpotAvailability.unavailable)
-        .toList();
+    final operational = operationalSpots(spots);
     if (operational.isEmpty) return 0;
-    final occupied = operational
-        .where((s) => s.availability == SpotAvailability.occupied)
-        .length;
-    return occupied / operational.length;
+    return physicallyOccupied(spots) / operational.length;
   }
 
   static bool isHighOccupancy(List<ParkingSpot> spots) =>

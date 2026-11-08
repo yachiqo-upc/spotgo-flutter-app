@@ -143,7 +143,8 @@ class _ZoneCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      zone.allowedTypes.map((t) => t.label).join(' · '),
+                      '${zone.allowedTypes.map((t) => t.label).join(' · ')}\n'
+                      '${zone.authorizedProfiles.map((p) => p.label).join(' · ')}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),

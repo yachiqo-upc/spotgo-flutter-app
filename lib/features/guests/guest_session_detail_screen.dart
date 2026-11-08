@@ -334,7 +334,10 @@ class _CheckoutCard extends StatelessWidget {
                         hintText: 'Optional',
                       ),
                       validator: (value) {
-                        final compact = (value ?? '').replaceAll(' ', '');
+                        final compact = (value ?? '').replaceAll(
+                          RegExp(r'[\s.-]'),
+                          '',
+                        );
                         if (RegExp(r'\d{12,19}').hasMatch(compact)) {
                           return 'Do not enter card numbers';
                         }
