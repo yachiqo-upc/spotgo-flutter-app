@@ -11,6 +11,7 @@ import '../../core/widgets/status_badge.dart';
 import '../../data/models/guest_session.dart';
 import '../shell/account_sheet.dart';
 import 'guest_session_detail_screen.dart';
+import 'new_guest_session_screen.dart';
 
 enum GuestTab {
   active('Active'),
@@ -74,6 +75,13 @@ class _GuestSessionsScreenState extends State<GuestSessionsScreen> {
               _SegmentedTabs(
                 selected: _tab,
                 onSelected: (tab) => setState(() => _tab = tab),
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton(
+                key: const Key('guest-new'),
+                onPressed: () =>
+                    pushAdminPage<void>(context, const NewGuestSessionScreen()),
+                child: const Text('New guest session'),
               ),
               const SizedBox(height: 14),
               if (sessions.isEmpty)

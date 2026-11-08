@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/admin_navigation.dart';
 import '../../app/app_scope.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
@@ -9,6 +10,7 @@ import '../../core/widgets/state_views.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../data/models/parking_spot.dart';
 import '../../data/models/parking_zone.dart';
+import '../guests/new_guest_session_screen.dart';
 import '../shell/account_sheet.dart';
 import 'spot_widgets.dart';
 
@@ -277,7 +279,7 @@ Future<void> showSpotDetails(BuildContext context, ParkingSpot spot) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (context) => SafeArea(
+    builder: (sheetContext) => SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         child: Column(
@@ -319,6 +321,20 @@ Future<void> showSpotDetails(BuildContext context, ParkingSpot spot) {
                 'Review the unauthorized occupancy alert. Vehicles are not '
                 'identified by image or plate.',
               ),
+            if (spot.canStartGuestSession && (zone?.isActive ?? false)) ...[
+              const SizedBox(height: 12),
+              FilledButton(
+                key: const Key('spot-start-guest'),
+                onPressed: () {
+                  Navigator.of(sheetContext).pop();
+                  pushAdminPage<void>(
+                    context,
+                    NewGuestSessionScreen(initialSpotId: spot.id),
+                  );
+                },
+                child: const Text('Start guest session here'),
+              ),
+            ],
           ],
         ),
       ),
