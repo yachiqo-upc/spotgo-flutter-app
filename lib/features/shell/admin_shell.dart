@@ -9,6 +9,7 @@ import '../../data/models/admin_account.dart';
 import '../../data/repositories/parking_repository.dart';
 import '../../state/admin_controller.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../occupancy/occupancy_screen.dart';
 import 'account_sheet.dart';
 import 'more_screen.dart';
 
@@ -69,7 +70,7 @@ class AdminShellState extends State<AdminShell> {
 
   Widget _tabBody(AdminTab tab) => switch (tab) {
     AdminTab.dashboard => const DashboardScreen(),
-    AdminTab.occupancy => const _PlannedTab(title: 'Live occupancy'),
+    AdminTab.occupancy => const OccupancyScreen(),
     AdminTab.alerts => const _PlannedTab(title: 'Operational alerts'),
     AdminTab.more => const MoreScreen(),
   };
