@@ -10,6 +10,7 @@ import '../../core/widgets/state_views.dart';
 import '../../data/models/operational_alert.dart';
 import '../../data/models/parking_spot.dart';
 import '../alerts/alert_detail_screen.dart';
+import '../guests/guest_sessions_screen.dart';
 import '../shell/account_sheet.dart';
 import '../shell/admin_shell.dart';
 
@@ -75,6 +76,8 @@ class DashboardScreen extends StatelessWidget {
                     key: const Key('metric-guests'),
                     value: '${admin.openGuestSessions}',
                     label: 'Guest sessions',
+                    onTap: () =>
+                        shell?.openMoreSection(const GuestSessionsScreen()),
                   ),
                   MetricCard(
                     value: '${admin.activeReservations}',

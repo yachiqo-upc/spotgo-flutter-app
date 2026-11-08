@@ -5,6 +5,7 @@ import '../../app/app_scope.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/cards.dart';
 import '../../core/widgets/page_layout.dart';
+import '../guests/guest_sessions_screen.dart';
 import '../zones/parking_zones_screen.dart';
 import 'account_sheet.dart';
 import 'admin_shell.dart';
@@ -39,6 +40,17 @@ class MoreScreen extends StatelessWidget {
                   onTap: () => Navigator.of(context).push(
                     AdminShellState.moreSectionRoute(
                       const ParkingZonesScreen(),
+                    ),
+                  ),
+                ),
+                InfoRow(
+                  key: const Key('more-guests'),
+                  title: 'Guest parking sessions',
+                  subtitle: '${admin.openGuestSessions} open sessions',
+                  trailingWidget: chevron,
+                  onTap: () => Navigator.of(context).push(
+                    AdminShellState.moreSectionRoute(
+                      const GuestSessionsScreen(),
                     ),
                   ),
                 ),
