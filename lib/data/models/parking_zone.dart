@@ -15,7 +15,8 @@ enum AccessProfile {
   standard('Standard Drivers'),
   subscriber('Plan subscribers'),
   accessible('Accessible permit'),
-  tenantStaff('Tenant staff');
+  tenantStaff('Tenant staff'),
+  taxi('Taxi drivers');
 
   const AccessProfile(this.label);
 

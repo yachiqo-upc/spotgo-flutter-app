@@ -55,7 +55,9 @@ class _SpotGoAdminAppState extends State<SpotGoAdminApp> {
           listenable: _auth,
           builder: (context, _) {
             final account = _auth.account;
-            if (account == null) return const LoginScreen();
+            if (account == null) {
+              return LoginScreen(showDemoHint: widget.authRepository == null);
+            }
             return AdminShell(
               key: ValueKey(account.id),
               account: account,

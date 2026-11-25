@@ -26,6 +26,7 @@ class _NewGuestSessionScreenState extends State<NewGuestSessionScreen> {
   final _plate = TextEditingController();
   final _color = TextEditingController();
   VehicleType _vehicleType = VehicleType.car;
+  PhysicalPaymentMethod _paymentMethod = PhysicalPaymentMethod.cash;
   String? _spotId;
   Duration _duration = const Duration(hours: 2);
   bool _saving = false;
@@ -68,6 +69,7 @@ class _NewGuestSessionScreenState extends State<NewGuestSessionScreen> {
           color: _color.text,
           spotId: _spotId!,
           expectedDuration: _duration,
+          paymentMethod: _paymentMethod,
         ),
       );
       if (!mounted) return;
@@ -137,43 +139,44 @@ class _NewGuestSessionScreenState extends State<NewGuestSessionScreen> {
                     validator: ParkingRules.validatePlate,
                   ),
                   const SizedBox(height: 14),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<VehicleType>(
-                          key: const Key('guest-vehicle-type'),
-                          initialValue: _vehicleType,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Vehicle type',
-                          ),
-                          items: [
-                            for (final type in VehicleType.values)
-                              DropdownMenuItem(
-                                value: type,
-                                child: Text(type.label),
-                              ),
-                          ],
-                          onChanged: (value) => setState(
-                            () => _vehicleType = value ?? _vehicleType,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextFormField(
-                          key: const Key('guest-color'),
-                          controller: _color,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Color',
-                            hintText: 'Optional',
+                  if (!admin.usesLiveData)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<VehicleType>(
+                            key: const Key('guest-vehicle-type'),
+                            initialValue: _vehicleType,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Vehicle type',
+                            ),
+                            items: [
+                              for (final type in VehicleType.values)
+                                DropdownMenuItem(
+                                  value: type,
+                                  child: Text(type.label),
+                                ),
+                            ],
+                            onChanged: (value) => setState(
+                              () => _vehicleType = value ?? _vehicleType,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextFormField(
+                            key: const Key('guest-color'),
+                            controller: _color,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'Color',
+                              hintText: 'Optional',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     key: const Key('guest-spot'),
@@ -219,39 +222,59 @@ class _NewGuestSessionScreenState extends State<NewGuestSessionScreen> {
                     ),
                   ],
                   const SizedBox(height: 14),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Start time',
-                          ),
-                          child: Text('Now · ${Formatters.time(admin.now)}'),
-                        ),
+                  if (admin.usesLiveData)
+                    DropdownButtonFormField<PhysicalPaymentMethod>(
+                      initialValue: _paymentMethod,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment method at exit',
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: DropdownButtonFormField<Duration>(
-                          key: const Key('guest-duration'),
-                          initialValue: _duration,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Expected duration',
+                      items: [
+                        for (final method in PhysicalPaymentMethod.values)
+                          DropdownMenuItem(
+                            value: method,
+                            child: Text(method.label),
                           ),
-                          items: [
-                            for (final d in _durations)
-                              DropdownMenuItem(
-                                value: d,
-                                child: Text(Formatters.duration(d)),
-                              ),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => _duration = value ?? _duration),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _paymentMethod = value);
+                        }
+                      },
+                    )
+                  else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Start time',
+                            ),
+                            child: Text('Now · ${Formatters.time(admin.now)}'),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DropdownButtonFormField<Duration>(
+                            key: const Key('guest-duration'),
+                            initialValue: _duration,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Expected duration',
+                            ),
+                            items: [
+                              for (final d in _durations)
+                                DropdownMenuItem(
+                                  value: d,
+                                  child: Text(Formatters.duration(d)),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _duration = value ?? _duration),
+                          ),
+                        ),
+                      ],
+                    ),
                   const SizedBox(height: 16),
                   NoticeCard(
                     title: 'Assignment rules',

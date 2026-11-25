@@ -10,6 +10,7 @@ class GuestSessionDraft {
     required this.spotId,
     required this.expectedDuration,
     this.color,
+    this.paymentMethod = PhysicalPaymentMethod.cash,
   });
 
   final String plate;
@@ -17,6 +18,7 @@ class GuestSessionDraft {
   final String? color;
   final String spotId;
   final Duration expectedDuration;
+  final PhysicalPaymentMethod paymentMethod;
 }
 
 /// Contract for Parking Infrastructure and Occupancy & Monitoring services.

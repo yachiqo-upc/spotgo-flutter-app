@@ -63,32 +63,40 @@ test/         Unit tests for rules and widget tests for the main flows
 State is handled with `ChangeNotifier` controllers exposed through
 `InheritedWidget` scopes, so no extra packages are required.
 
-## Data sources
+## Data sources and Android setup
 
-The documented SpotGo backend (`https://spotgo-backend.onrender.com`) did not
-answer its OpenAPI or Swagger endpoints (HTTP 404) during development, so no
-endpoint was assumed. The app uses `AuthRepository` and `ParkingRepository`
-contracts with **local mock implementations** (`lib/data/mock`) that hold sample
-data in memory and apply the same business rules. A REST implementation can
-replace them in `SpotGoAdminApp` without changing the screens.
+Parking Admin connects to the SpotGo REST API. The backend handles access
+tokens, tenant permissions and PostgreSQL. The normal app starts with REST
+repositories. The in-memory repositories are available to widget tests.
 
-Demo account (sample data only): `admin@spotgo.pe` / `SpotGo2026!`.
+With Spring Boot running locally on port 8080, run the app in debug on an
+Android emulator. The default debug URL is `http://10.0.2.2:8080`, which points
+to the development machine. Android Studio's Run button uses this default.
+If your local database has the backend demo data, sign in with
+`ana.admin@example.com` and the password from the local backend seeder.
 
-## Running
+To choose a different backend in Android Studio, put
+`--dart-define=SPOTGO_API_BASE_URL=https://your-backend.onrender.com` in the
+Flutter run configuration's additional run arguments. For a production APK,
+supply your deployed backend's HTTPS URL at build time.
 
-```bash
+~~~bash
 flutter pub get
 flutter analyze
 flutter test
 flutter run
-flutter build apk
-```
+flutter build apk --dart-define=SPOTGO_API_BASE_URL=https://your-backend.onrender.com
+~~~
+
+Keep database credentials and the JWT signing key in the backend environment.
+For a local database Spring reads `application.properties`. A deployed Spring
+service with the `production` profile reads `application-production.properties`
+and the environment variables of that deployment.
 
 ## Pending for the complete module
 
 - Occupancy reports (18), parking infrastructure, digital map and floor plan
   upload (24, 25, 36), zone assignments and driver profiles (31), zone
   occupancy detail (32), B2B billing (26, 41).
-- REST integration with the SpotGo backend, Google sign in and persistent
-  session ("keep me signed in").
+- Google sign-in and persistent sign-in across app restarts.
 - Real-time sensor events (MQTT/HTTP) and push notifications.

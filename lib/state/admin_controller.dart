@@ -6,6 +6,7 @@ import '../data/models/operational_alert.dart';
 import '../data/models/parking_snapshot.dart';
 import '../data/models/parking_spot.dart';
 import '../data/models/parking_zone.dart';
+import '../data/remote/remote_parking_repository.dart';
 import '../data/repositories/parking_repository.dart';
 import '../domain/parking_rules.dart';
 
@@ -30,6 +31,7 @@ class AdminController extends ChangeNotifier {
   ParkingSnapshot? get snapshot => _snapshot;
   bool get loading => _loading;
   String? get error => _error;
+  bool get usesLiveData => _repository is RemoteParkingRepository;
   bool get hasData => _snapshot != null;
   DateTime get now => _clock();
 

@@ -114,6 +114,11 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
   String? _formLevelError() {
     final hours = ParkingRules.validateOperatingHours(_opensAt, _closesAt);
     if (hours != null) return hours;
+    if (AdminScope.of(context).usesLiveData) {
+      return _profiles.isEmpty
+          ? 'Select at least one authorized profile'
+          : null;
+    }
     if (_types.isEmpty) return 'Select at least one allowed spot type';
     if (_profiles.isEmpty) return 'Select at least one authorized profile';
     if (_spotIds.isEmpty) return 'Assign at least one parking spot';
@@ -150,8 +155,8 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
       district: _district.text.trim(),
       opensAtMinutes: _opensAt!,
       closesAtMinutes: _closesAt!,
-      ratePerHour: double.parse(_rate.text.replaceAll(',', '.')),
-      billingFractionMinutes: int.parse(_fraction.text),
+      ratePerHour: double.tryParse(_rate.text.replaceAll(',', '.')) ?? 0,
+      billingFractionMinutes: int.tryParse(_fraction.text) ?? 60,
       status: _status,
       allowedTypes: Set.of(_types),
       authorizedProfiles: Set.of(_profiles),
@@ -270,6 +275,7 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
                     left: TextFormField(
                       key: const Key('zone-rate'),
                       controller: _rate,
+                      readOnly: admin.usesLiveData,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -278,6 +284,7 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
                         prefixText: 'S/ ',
                       ),
                       validator: (v) {
+                        if (admin.usesLiveData) return null;
                         final rate = double.tryParse(
                           (v ?? '').replaceAll(',', '.'),
                         );
@@ -291,12 +298,14 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
                     right: TextFormField(
                       key: const Key('zone-fraction'),
                       controller: _fraction,
+                      readOnly: admin.usesLiveData,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: 'Billing fraction',
                         suffixText: 'min',
                       ),
                       validator: (v) {
+                        if (admin.usesLiveData) return null;
                         final value = int.tryParse(v ?? '');
                         if (value == null) return 'Enter minutes';
                         if (value <= 0) return 'Must be positive';
@@ -313,28 +322,36 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
                     selected: _status,
                     onSelected: (value) => setState(() => _status = value),
                   ),
-                  const SectionTitle('Allowed spot types'),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final type in SpotType.values)
-                        SelectableChip(
-                          key: Key('zone-type-${type.name}'),
-                          label: type.label,
-                          selected: _types.contains(type),
-                          onTap: () => setState(() {
-                            if (!_types.remove(type)) _types.add(type);
-                          }),
-                        ),
-                    ],
-                  ),
+                  if (!admin.usesLiveData) ...[
+                    const SectionTitle('Allowed spot types'),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final type in SpotType.values)
+                          SelectableChip(
+                            key: Key('zone-type-${type.name}'),
+                            label: type.label,
+                            selected: _types.contains(type),
+                            onTap: () => setState(() {
+                              if (!_types.remove(type)) _types.add(type);
+                            }),
+                          ),
+                      ],
+                    ),
+                  ],
                   const SectionTitle('Authorized Driver profiles'),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final profile in AccessProfile.values)
+                      for (final profile in AccessProfile.values.where(
+                        (profile) => admin.usesLiveData
+                            ? profile == AccessProfile.standard ||
+                                  profile == AccessProfile.tenantStaff ||
+                                  profile == AccessProfile.taxi
+                            : profile != AccessProfile.taxi,
+                      ))
                         SelectableChip(
                           key: Key('zone-profile-${profile.name}'),
                           label: profile.label,
@@ -347,41 +364,43 @@ class _ZoneFormScreenState extends State<ZoneFormScreen> {
                         ),
                     ],
                   ),
-                  SectionTitle(
-                    'Assigned spots',
-                    trailing: Text(
-                      '${_spotIds.length} selected',
-                      style: Theme.of(context).textTheme.bodySmall,
+                  if (!admin.usesLiveData)
+                    SectionTitle(
+                      'Assigned spots',
+                      trailing: Text(
+                        '${_spotIds.length} selected',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final spot in admin.spots)
-                        Builder(
-                          builder: (context) {
-                            final owner = admin.zoneById(spot.zoneId);
-                            final foreignZone =
-                                owner != null && owner.id != widget.zoneId
-                                ? owner.name.split(' ').take(2).join(' ')
-                                : null;
-                            return SelectableChip(
-                              key: Key('zone-spot-${spot.code}'),
-                              label: foreignZone != null
-                                  ? '${spot.code} · $foreignZone'
-                                  : '${spot.code} · ${spot.type.code}',
-                              selected: _spotIds.contains(spot.id),
-                              onTap: () => setState(() {
-                                if (!_spotIds.remove(spot.id)) {
-                                  _spotIds.add(spot.id);
-                                }
-                              }),
-                            );
-                          },
-                        ),
-                    ],
-                  ),
+                  if (!admin.usesLiveData)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final spot in admin.spots)
+                          Builder(
+                            builder: (context) {
+                              final owner = admin.zoneById(spot.zoneId);
+                              final foreignZone =
+                                  owner != null && owner.id != widget.zoneId
+                                  ? owner.name.split(' ').take(2).join(' ')
+                                  : null;
+                              return SelectableChip(
+                                key: Key('zone-spot-${spot.code}'),
+                                label: foreignZone != null
+                                    ? '${spot.code} · $foreignZone'
+                                    : '${spot.code} · ${spot.type.code}',
+                                selected: _spotIds.contains(spot.id),
+                                onTap: () => setState(() {
+                                  if (!_spotIds.remove(spot.id)) {
+                                    _spotIds.add(spot.id);
+                                  }
+                                }),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
                   const SizedBox(height: 16),
                   if (_error != null) ...[
                     Container(
