@@ -18,6 +18,43 @@ abstract final class Formatters {
 
   static String money(double amount) => 'S/ ${amount.toStringAsFixed(2)}';
 
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  /// `01 Sep 2026` in the device timezone.
+  static String date(DateTime value) {
+    final local = value.toLocal();
+    return '${local.day.toString().padLeft(2, '0')} '
+        '${_months[local.month - 1]} ${local.year}';
+  }
+
+  /// `01 Sep 2026 · 14:05` in the device timezone.
+  static String dateTime(DateTime value) {
+    final local = value.toLocal();
+    return '${date(local)} · ${time(local)}';
+  }
+
+  /// Formats integer cents without going through `double` arithmetic.
+  static String moneyCents(int cents) {
+    final sign = cents < 0 ? '-' : '';
+    final absolute = cents.abs();
+    final whole = absolute ~/ 100;
+    final fraction = (absolute % 100).toString().padLeft(2, '0');
+    return '${sign}S/ $whole.$fraction';
+  }
+
   static String relative(DateTime value, DateTime now) {
     final diff = now.difference(value);
     if (diff.inSeconds < 60) return 'just now';

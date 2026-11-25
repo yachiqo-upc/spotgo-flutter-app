@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:spotgo_mobile_app/app/spotgo_admin_app.dart';
 import 'package:spotgo_mobile_app/data/mock/mock_auth_repository.dart';
+import 'package:spotgo_mobile_app/data/mock/mock_billing_repository.dart';
 import 'package:spotgo_mobile_app/data/mock/mock_parking_repository.dart';
 
 Widget _app() => SpotGoAdminApp(
   authRepository: MockAuthRepository(latency: Duration.zero),
+  billingRepository: MockBillingRepository(latency: Duration.zero),
   parkingRepository: MockParkingRepository(latency: Duration.zero),
   liveRefreshInterval: null,
 );
@@ -169,6 +171,74 @@ void main() {
     expect(find.text('Session closed'), findsOneWidget);
     expect(find.byKey(const Key('guest-confirm-payment')), findsNothing);
 
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('More exposes the billing management screens', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_app());
+    await _signIn(tester);
+    await _selectTab(tester, 'More');
+
+    final billing = find.byKey(const Key('more-billing'));
+    await tester.ensureVisible(billing);
+    await tester.tap(billing);
+    await tester.pumpAndSettle();
+
+    final plans = find.byKey(const Key('billing-plans'));
+    expect(plans, findsOneWidget);
+    await tester.ensureVisible(plans);
+    await tester.tap(plans);
+    await tester.pumpAndSettle();
+    expect(find.text('Plans & subscription'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('billing documents can be issued for an approved payment', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_app());
+    await _signIn(tester);
+    await _selectTab(tester, 'More');
+
+    final billing = find.byKey(const Key('more-billing'));
+    await tester.ensureVisible(billing);
+    await tester.tap(billing);
+    await tester.pumpAndSettle();
+    final documents = find.byKey(const Key('billing-documents'));
+    await tester.ensureVisible(documents);
+    await tester.tap(documents);
+    await tester.pumpAndSettle();
+
+    const paymentId = 'payment-0000-4000-8000-000000000083';
+    final issue = find.byKey(Key('document-issue-$paymentId'));
+    await tester.ensureVisible(issue);
+    await tester.tap(issue);
+    await tester.pumpAndSettle();
+    expect(find.text('Issue billing document'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('billing-document-number')),
+      '99999999',
+    );
+    await tester.enterText(
+      find.byKey(const Key('billing-legal-name')),
+      'Example Customer',
+    );
+    await tester.enterText(
+      find.byKey(const Key('billing-tax-number')),
+      '12345678',
+    );
+    await tester.tap(find.byKey(const Key('billing-document-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('B001-99999999'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }

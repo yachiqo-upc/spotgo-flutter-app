@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../data/repositories/parking_repository.dart';
 import '../state/admin_controller.dart';
 import '../state/auth_controller.dart';
+import '../state/billing_controller.dart';
 
 /// Exposes the app-wide dependencies without extra packages.
 class AppScope extends InheritedWidget {
@@ -10,11 +11,13 @@ class AppScope extends InheritedWidget {
     super.key,
     required this.auth,
     required this.parkingRepository,
+    required this.billing,
     required super.child,
   });
 
   final AuthController auth;
   final ParkingRepository parkingRepository;
+  final BillingController billing;
 
   static AppScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
@@ -25,6 +28,7 @@ class AppScope extends InheritedWidget {
   @override
   bool updateShouldNotify(AppScope oldWidget) =>
       auth != oldWidget.auth ||
+      billing != oldWidget.billing ||
       parkingRepository != oldWidget.parkingRepository;
 }
 

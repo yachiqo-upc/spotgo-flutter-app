@@ -36,9 +36,16 @@ class SpotGoApi {
     String path, {
     String method = 'GET',
     Json? body,
+    Map<String, String>? query,
     bool auth = true,
   }) async =>
-      (await request(path, method: method, body: body, auth: auth)) as Json;
+      (await request(
+        path,
+        method: method,
+        body: body,
+        query: query,
+        auth: auth,
+      )) as Json;
 
   Future<List<Json>> list(String path, [Map<String, String>? query]) async =>
       (await request(path, query: query) as List<dynamic>).cast<Json>();
@@ -128,13 +135,25 @@ class SpotGoApi {
       }
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message = payload is Json ? payload['message'] as String? : null;
       throw ApiException(
         response.statusCode,
-        message ?? 'SpotGo API returned HTTP ${response.statusCode}.',
+        errorMessage(payload, response.statusCode),
       );
     }
     return payload;
+  }
+
+  /// Tolerant error parser (contract §0.4): `message` → `details` → `error`,
+  /// falling back to the HTTP status. Billing answers `{"message": "…"}`
+  /// without a `code`, while the IAM/Global handlers add `code`/`details`.
+  static String errorMessage(dynamic payload, int status) {
+    if (payload is Json) {
+      for (final key in const ['message', 'details', 'error']) {
+        final value = payload[key];
+        if (value is String && value.trim().isNotEmpty) return value.trim();
+      }
+    }
+    return 'SpotGo API returned HTTP $status.';
   }
 }
 

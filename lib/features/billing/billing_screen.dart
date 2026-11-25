@@ -5,8 +5,15 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/cards.dart';
 import '../../core/widgets/page_layout.dart';
 import '../../core/widgets/status_badge.dart';
+import '../shell/admin_shell.dart';
 import '../shell/account_sheet.dart';
+import 'additional_charges_screen.dart';
+import 'billing_documents_screen.dart';
 import 'edit_billing_screen.dart';
+import 'payment_history_screen.dart';
+import 'payment_methods_screen.dart';
+import 'plans_screen.dart';
+import 'refunds_screen.dart';
 
 /// B2B plan, billing details and recent invoices of the business account
 /// (mockup 26).
@@ -27,6 +34,47 @@ class BillingScreen extends StatelessWidget {
               onBack: Navigator.of(context).canPop()
                   ? () => Navigator.of(context).maybePop()
                   : null,
+            ),
+            const SectionTitle('Manage billing'),
+            SectionCard(
+              children: [
+                _BillingLink(
+                  key: const Key('billing-plans'),
+                  title: 'Plans & subscription',
+                  subtitle: 'View plans and manage the active subscription',
+                  onTap: () => _open(context, const PlansScreen()),
+                ),
+                _BillingLink(
+                  key: const Key('billing-payment-methods'),
+                  title: 'Payment methods',
+                  subtitle: 'Add, set default or revoke a token',
+                  onTap: () => _open(context, const PaymentMethodsScreen()),
+                ),
+                _BillingLink(
+                  key: const Key('billing-payment-history'),
+                  title: 'Payment history',
+                  subtitle: 'Review payment attempts and status',
+                  onTap: () => _open(context, const PaymentHistoryScreen()),
+                ),
+                _BillingLink(
+                  key: const Key('billing-additional-charges'),
+                  title: 'Additional charges',
+                  subtitle: 'Create charges and review outstanding balances',
+                  onTap: () => _open(context, const AdditionalChargesScreen()),
+                ),
+                _BillingLink(
+                  key: const Key('billing-refunds'),
+                  title: 'Refunds',
+                  subtitle: 'Request and process payment refunds',
+                  onTap: () => _open(context, const RefundsScreen()),
+                ),
+                _BillingLink(
+                  key: const Key('billing-documents'),
+                  title: 'Billing documents',
+                  subtitle: 'Issue receipts and invoices for approved payments',
+                  onTap: () => _open(context, const BillingDocumentsScreen()),
+                ),
+              ],
             ),
             const _PlanCard(),
             const SectionTitle('Billing information'),
@@ -69,10 +117,8 @@ class BillingScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             OutlinedButton(
-              onPressed: () => pushAdminPage<void>(
-                context,
-                const EditBillingScreen(),
-              ),
+              onPressed: () =>
+                  pushAdminPage<void>(context, const EditBillingScreen()),
               child: const Text('Update billing information'),
             ),
           ],
@@ -80,6 +126,34 @@ class BillingScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _open(BuildContext context, Widget page) {
+    Navigator.of(context).push(AdminShellState.moreSectionRoute(page));
+  }
+}
+
+class _BillingLink extends StatelessWidget {
+  const _BillingLink({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InfoRow(
+    title: title,
+    subtitle: subtitle,
+    trailingWidget: const Icon(
+      Icons.chevron_right,
+      color: AppColors.textSecondary,
+    ),
+    onTap: onTap,
+  );
 }
 
 class _PlanCard extends StatelessWidget {

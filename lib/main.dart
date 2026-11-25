@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'app/spotgo_admin_app.dart';
 import 'data/remote/remote_auth_repository.dart';
+import 'data/remote/remote_billing_repository.dart';
 import 'data/remote/remote_parking_repository.dart';
 import 'data/remote/spotgo_api.dart';
 
@@ -37,6 +38,7 @@ void main() {
     SpotGoAdminApp(
       authRepository: RemoteAuthRepository(api),
       parkingRepository: RemoteParkingRepository(api),
+      billingRepository: RemoteBillingRepository(api),
     ),
   );
 }
