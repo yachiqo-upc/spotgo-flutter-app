@@ -81,7 +81,9 @@ class _GuestSessionDetailScreenState extends State<GuestSessionDetailScreen> {
     await _run(() async {
       final session = await admin.confirmGuestPayment(
         widget.sessionId,
-        method: _method,
+        method: admin.usesLiveData
+            ? admin.sessionById(widget.sessionId)?.paymentMethod ?? _method
+            : _method,
         reference: _referenceController.text,
       );
       messenger.showSnackBar(
@@ -163,7 +165,8 @@ class _GuestSessionDetailScreenState extends State<GuestSessionDetailScreen> {
                       title: 'Vehicle',
                       subtitle: 'No Driver account · no reservation',
                       trailing: [
-                        session.vehicleType.label,
+                        if (session.vehicleType != null)
+                          session.vehicleType!.label,
                         if (session.color != null) session.color!,
                       ].join(' · '),
                     ),
@@ -172,13 +175,14 @@ class _GuestSessionDetailScreenState extends State<GuestSessionDetailScreen> {
                       subtitle: Formatters.dayAndTime(session.entryAt, now),
                       trailing: Formatters.duration(session.elapsed(now)),
                     ),
-                    InfoRow(
-                      title: 'Expected checkout',
-                      subtitle:
-                          '${Formatters.duration(session.expectedDuration)} '
-                          '· 5 min tolerance',
-                      trailing: Formatters.time(session.expectedCheckout),
-                    ),
+                    if (session.expectedDuration > Duration.zero)
+                      InfoRow(
+                        title: 'Expected checkout',
+                        subtitle:
+                            '${Formatters.duration(session.expectedDuration)} '
+                            '· 5 min tolerance',
+                        trailing: Formatters.time(session.expectedCheckout),
+                      ),
                     if (session.exitAt != null)
                       InfoRow(
                         title: 'Exit registered',
@@ -230,7 +234,13 @@ class _GuestSessionDetailScreenState extends State<GuestSessionDetailScreen> {
                     exitRegistered: session.exitRegistered,
                     busy: _busy,
                     error: _error,
-                    method: _method,
+                    method: admin.usesLiveData
+                        ? admin.sessionById(widget.sessionId)?.paymentMethod ??
+                              _method
+                        : _method,
+                    lockedMethod: admin.usesLiveData
+                        ? session.paymentMethod
+                        : null,
                     collected: _collected,
                     formKey: _paymentFormKey,
                     referenceController: _referenceController,
@@ -254,6 +264,7 @@ class _CheckoutCard extends StatelessWidget {
     required this.busy,
     required this.error,
     required this.method,
+    this.lockedMethod,
     required this.collected,
     required this.formKey,
     required this.referenceController,
@@ -267,6 +278,7 @@ class _CheckoutCard extends StatelessWidget {
   final bool busy;
   final String? error;
   final PhysicalPaymentMethod method;
+  final PhysicalPaymentMethod? lockedMethod;
   final bool collected;
   final GlobalKey<FormState> formKey;
   final TextEditingController referenceController;
@@ -316,34 +328,38 @@ class _CheckoutCard extends StatelessWidget {
                   ),
                   if (exitRegistered) ...[
                     const SizedBox(height: 14),
-                    ChoiceChipBar<PhysicalPaymentMethod>(
-                      options: [
-                        for (final m in PhysicalPaymentMethod.values)
-                          ChipOption(m, m.label),
-                      ],
-                      selected: method,
-                      onSelected: onMethod,
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      key: const Key('guest-reference'),
-                      controller: referenceController,
-                      maxLength: 30,
-                      decoration: const InputDecoration(
-                        labelText: 'Receipt or voucher number',
-                        hintText: 'Optional',
+                    if (lockedMethod case final recorded?)
+                      Text(recorded.label)
+                    else ...[
+                      ChoiceChipBar<PhysicalPaymentMethod>(
+                        options: [
+                          for (final m in PhysicalPaymentMethod.values)
+                            ChipOption(m, m.label),
+                        ],
+                        selected: method,
+                        onSelected: onMethod,
                       ),
-                      validator: (value) {
-                        final compact = (value ?? '').replaceAll(
-                          RegExp(r'[\s.-]'),
-                          '',
-                        );
-                        if (RegExp(r'\d{12,19}').hasMatch(compact)) {
-                          return 'Do not enter card numbers';
-                        }
-                        return null;
-                      },
-                    ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        key: const Key('guest-reference'),
+                        controller: referenceController,
+                        maxLength: 30,
+                        decoration: const InputDecoration(
+                          labelText: 'Receipt or voucher number',
+                          hintText: 'Optional',
+                        ),
+                        validator: (value) {
+                          final compact = (value ?? '').replaceAll(
+                            RegExp(r'[\s.-]'),
+                            '',
+                          );
+                          if (RegExp(r'\d{12,19}').hasMatch(compact)) {
+                            return 'Do not enter card numbers';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                     CheckboxListTile(
                       key: const Key('guest-collected'),
                       contentPadding: EdgeInsets.zero,

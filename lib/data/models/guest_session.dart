@@ -52,7 +52,7 @@ class GuestSession {
 
   final String id;
   final String plate;
-  final VehicleType vehicleType;
+  final VehicleType? vehicleType;
   final String? color;
   final String zoneId;
   final String spotId;
@@ -77,6 +77,7 @@ class GuestSession {
   Duration elapsed(DateTime now) => (exitAt ?? now).difference(entryAt);
 
   bool isOverstay(DateTime now) =>
+      expectedDuration > Duration.zero &&
       !isClosed &&
       (exitAt ?? now).isAfter(expectedCheckout.add(overstayTolerance));
 
