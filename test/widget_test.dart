@@ -58,7 +58,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Audit history'), findsOneWidget);
 
-    await tester.tap(find.text('Account'));
+    final account = find.text('Account');
+    await tester.ensureVisible(account);
+    await tester.pumpAndSettle();
+    await tester.tap(account);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('sign-out')));
     await tester.pumpAndSettle();
