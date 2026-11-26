@@ -36,9 +36,10 @@ class AdminShell extends StatefulWidget {
   State<AdminShell> createState() => AdminShellState();
 }
 
-class AdminShellState extends State<AdminShell> {
+class AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
   late final AdminController _controller;
   Timer? _liveTimer;
+  Duration? _liveRefreshInterval;
   AdminTab _tab = AdminTab.dashboard;
 
   final _moreNavigatorKey = GlobalKey<NavigatorState>();
@@ -50,6 +51,49 @@ class AdminShellState extends State<AdminShell> {
       _moreNavigatorKey.currentState?.popUntil((route) => route.isFirst);
     }
     setState(() => _tab = tab);
+    if (tab == AdminTab.occupancy) {
+      _loadOccupancy();
+      _startOccupancyPolling();
+    } else {
+      _stopOccupancyPolling();
+    }
+  }
+
+  void _startOccupancyPolling() {
+    _stopOccupancyPolling();
+    final interval = _liveRefreshInterval;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (interval == null ||
+        lifecycle != null && lifecycle != AppLifecycleState.resumed) {
+      return;
+    }
+    _liveTimer = Timer.periodic(interval, (_) {
+      final monitoring = AppScope.of(context).monitoring;
+      if (_tab == AdminTab.occupancy &&
+          _controller.hasData &&
+          !_controller.loading &&
+          !monitoring.loading &&
+          !monitoring.forbidden) {
+        _controller.refresh();
+        monitoring.refresh();
+      }
+    });
+  }
+
+  void _stopOccupancyPolling() {
+    _liveTimer?.cancel();
+    _liveTimer = null;
+  }
+
+  void _loadOccupancy() {
+    final monitoring = AppScope.of(context).monitoring;
+    if (_controller.hasData) _controller.refresh();
+    if (monitoring.forbidden || monitoring.loading) return;
+    if (monitoring.loaded) {
+      monitoring.refresh();
+    } else {
+      monitoring.load();
+    }
   }
 
   /// Sections of the More tab keep the bottom navigation, as in the mockups.
@@ -58,6 +102,7 @@ class AdminShellState extends State<AdminShell> {
 
   void openMoreSection(Widget page) {
     setState(() => _tab = AdminTab.more);
+    _stopOccupancyPolling();
     final navigator = _moreNavigatorKey.currentState;
     if (navigator == null) return;
     navigator.popUntil((route) => route.isFirst);
@@ -71,30 +116,38 @@ class AdminShellState extends State<AdminShell> {
       navigator.pop();
     } else if (_tab != AdminTab.dashboard) {
       setState(() => _tab = AdminTab.dashboard);
+      _stopOccupancyPolling();
     } else {
       SystemNavigator.pop();
     }
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _tab == AdminTab.occupancy) {
+      _loadOccupancy();
+      _startOccupancyPolling();
+    } else if (state != AppLifecycleState.resumed) {
+      _stopOccupancyPolling();
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AdminController(
       repository: widget.repository,
       account: widget.account,
     );
     _controller.load();
-    final interval = widget.liveRefreshInterval;
-    if (interval != null) {
-      _liveTimer = Timer.periodic(interval, (_) {
-        if (_controller.hasData && !_controller.loading) _controller.refresh();
-      });
-    }
+    _liveRefreshInterval = widget.liveRefreshInterval;
   }
 
   @override
   void dispose() {
-    _liveTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _stopOccupancyPolling();
     _controller.dispose();
     super.dispose();
   }

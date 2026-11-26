@@ -57,7 +57,10 @@ abstract final class ParkingRules {
   /// Spots with a reliable sensor reading (operational for monitoring).
   static List<ParkingSpot> operationalSpots(List<ParkingSpot> spots) => spots
       .where(
-        (s) => s.sensorReliable && s.occupancy != OccupancyStatus.unavailable,
+        (s) =>
+            s.sensorReliable &&
+            s.occupancy != OccupancyStatus.unavailable &&
+            s.occupancy != OccupancyStatus.unknown,
       )
       .toList();
 

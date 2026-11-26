@@ -14,7 +14,8 @@ enum SpotType {
 enum OccupancyStatus {
   available('Available'),
   occupied('Occupied'),
-  unavailable('Unavailable');
+  unavailable('Unavailable'),
+  unknown('Unknown');
 
   const OccupancyStatus(this.label);
 
@@ -65,6 +66,8 @@ class ParkingSpot {
     required this.sensorId,
     required this.sensorHealth,
     required this.lastReadingAt,
+    this.operationalStatus = 'ACTIVE',
+    this.availabilityReason = '',
     this.reservationCode,
     this.guestSessionId,
   });
@@ -79,12 +82,16 @@ class ParkingSpot {
   final String sensorId;
   final SensorHealth sensorHealth;
   final DateTime lastReadingAt;
+  final String operationalStatus;
+  final String availabilityReason;
   final String? guestSessionId;
 
   bool get sensorReliable => sensorHealth != SensorHealth.failed;
 
   SpotAvailability get availability {
-    if (!sensorReliable || occupancy == OccupancyStatus.unavailable) {
+    if (!sensorReliable ||
+        occupancy == OccupancyStatus.unavailable ||
+        occupancy == OccupancyStatus.unknown) {
       return SpotAvailability.unavailable;
     }
     if (occupancy == OccupancyStatus.occupied ||
@@ -107,7 +114,11 @@ class ParkingSpot {
       reservation != ReservationState.active &&
       guestSessionId == null;
 
-  bool get hasIssue => !sensorReliable || hasUnvalidatedOccupancy;
+  bool get hasIssue =>
+      !sensorReliable ||
+      occupancy == OccupancyStatus.unavailable ||
+      occupancy == OccupancyStatus.unknown ||
+      hasUnvalidatedOccupancy;
 
   ParkingSpot copyWith({
     String? zoneId,
@@ -129,6 +140,8 @@ class ParkingSpot {
       sensorId: sensorId,
       sensorHealth: sensorHealth ?? this.sensorHealth,
       lastReadingAt: lastReadingAt ?? this.lastReadingAt,
+      operationalStatus: operationalStatus,
+      availabilityReason: availabilityReason,
       guestSessionId: clearGuestSession
           ? null
           : guestSessionId ?? this.guestSessionId,

@@ -1,3 +1,4 @@
+import '../../core/api/role_guard.dart';
 import '../models/additional_charge.dart';
 import '../models/billing_document.dart';
 import '../models/billing_types.dart';
@@ -150,6 +151,25 @@ class MockBillingRepository implements BillingRepository {
         createdAt: now.subtract(const Duration(days: 10)),
         approvedAt: now.subtract(const Duration(days: 10)),
       ),
+      // A driver's reservation payment (PAY-03). PAY-01 never returns it to
+      // this account, but PAY-02 still resolves it by id, which is how the
+      // refund flow reads the payment behind a tenant reservation (RES-01).
+      DigitalPayment(
+        paymentId: 'payment-0000-4000-8000-000000000081',
+        tokenId: _tokens.first.tokenId,
+        profileId: 'profile-0000-4000-8000-000000000042',
+        operationType: PaymentOperationType.reservation,
+        amountCents: 1000,
+        currency: 'PEN',
+        status: PaymentStatus.approved,
+        providerOperationRef: 'reservation-0000-4000-8000-000000000091',
+        idempotencyKey: 'demo-reservation-091',
+        requestHash: '33333333333333333333333333333333',
+        firstSeenAt: now.subtract(const Duration(days: 6)),
+        lastSeenAt: now.subtract(const Duration(days: 6)),
+        createdAt: now.subtract(const Duration(days: 6)),
+        approvedAt: now.subtract(const Duration(days: 6)),
+      ),
     ];
     _charges = [
       AdditionalCharge(
@@ -195,7 +215,7 @@ class MockBillingRepository implements BillingRepository {
     _refunds = [
       Refund(
         refundId: 'refund-0000-4000-8000-000000000301',
-        paymentId: 'payment-0000-4000-8000-000000000083',
+        paymentId: 'payment-0000-4000-8000-000000000081',
         amountCents: 200,
         reason: 'Customer request',
         status: RefundStatus.completed,
@@ -437,7 +457,12 @@ class MockBillingRepository implements BillingRepository {
   Future<List<DigitalPayment>> listPayments() async {
     await _delay();
     _checkProfile();
-    return List.unmodifiable(_payments);
+    // PAY-01 answers "mis pagos": only this account's operations. A driver's
+    // reservation payment stays reachable through PAY-02 by id, which is how
+    // the refund flow reads it.
+    return List.unmodifiable(
+      _payments.where((payment) => payment.profileId == _profileId),
+    );
   }
 
   @override
@@ -464,7 +489,6 @@ class MockBillingRepository implements BillingRepository {
     required String tokenId,
     required String idempotencyKey,
     String? providerOperationRef,
-    String? conflictMessage,
   }) {
     final token = _token(tokenId);
     if (token.status != PaymentTokenStatus.active) {
@@ -485,7 +509,6 @@ class MockBillingRepository implements BillingRepository {
         );
       }
     }
-    if (conflictMessage != null) throw _conflict(conflictMessage);
     _idempotency[idempotencyKey] = signature;
     final payment = DigitalPayment(
       paymentId: _nextId('payment'),
@@ -507,49 +530,6 @@ class MockBillingRepository implements BillingRepository {
   }
 
   @override
-  Future<DigitalPayment> createReservationPayment({
-    required String reservationId,
-    required String tokenId,
-    required String idempotencyKey,
-  }) async {
-    await _delay();
-    _checkProfile();
-    final alreadyPaid = _payments.any(
-      (p) =>
-          p.operationType == PaymentOperationType.reservation &&
-          p.providerOperationRef == reservationId,
-    );
-    return _initiate(
-      operationType: PaymentOperationType.reservation,
-      amountCents: 1000,
-      tokenId: tokenId,
-      idempotencyKey: idempotencyKey,
-      providerOperationRef: reservationId,
-      conflictMessage: alreadyPaid
-          ? 'The reservation already has a payment operation. '
-                'View or retry that operation.'
-          : null,
-    );
-  }
-
-  @override
-  Future<DigitalPayment> createReservationChangePayment({
-    required String changeId,
-    required String tokenId,
-    required String idempotencyKey,
-  }) async {
-    await _delay();
-    _checkProfile();
-    return _initiate(
-      operationType: PaymentOperationType.reservationAdjustment,
-      amountCents: 500,
-      tokenId: tokenId,
-      idempotencyKey: idempotencyKey,
-      providerOperationRef: changeId,
-    );
-  }
-
-  @override
   Future<DigitalPayment> createSubscriptionPayment({
     required String planCode,
     required String tokenId,
@@ -562,6 +542,14 @@ class MockBillingRepository implements BillingRepository {
       throw const BillingException(
         'Plan is not configured in the server catalog.',
         status: 400,
+      );
+    }
+    // SUB-03/PAY-05 answer 403 for a plan of another audience.
+    if (!plan.isParkingAdminPlan) {
+      throw BillingException(
+        'The plan $planCode belongs to another audience; '
+        '${RoleGuard.appRole} accounts cannot subscribe to it.',
+        status: 403,
       );
     }
     final quotedPlan = _quotedPlan(plan);
@@ -578,30 +566,6 @@ class MockBillingRepository implements BillingRepository {
       tokenId: tokenId,
       idempotencyKey: idempotencyKey,
       providerOperationRef: planCode,
-    );
-  }
-
-  @override
-  Future<DigitalPayment> createAdditionalChargePayment({
-    required String chargeId,
-    required String tokenId,
-    required String idempotencyKey,
-  }) async {
-    await _delay();
-    _checkProfile();
-    final charge = _charges.where((c) => c.chargeId == chargeId).firstOrNull;
-    if (charge == null) {
-      throw const BillingException('Additional charge not found', status: 404);
-    }
-    return _initiate(
-      operationType: PaymentOperationType.additionalCharge,
-      amountCents: charge.amountCents,
-      tokenId: tokenId,
-      idempotencyKey: idempotencyKey,
-      providerOperationRef: chargeId,
-      conflictMessage: charge.paymentId != null
-          ? 'The charge already has a payment operation; retry that operation.'
-          : null,
     );
   }
 
@@ -695,11 +659,13 @@ class MockBillingRepository implements BillingRepository {
 
   // ── Subscriptions ─────────────────────────────────────────────────────
 
+  /// SUB-02 is unfiltered in the backend: DRIVER plans really are listed.
+  /// They are dropped here so this app only ever offers what PA can buy.
   @override
   Future<List<SubscriptionPlan>> listPlans() async {
     await _delay();
     _checkProfile();
-    return List.unmodifiable(_plans);
+    return List.unmodifiable(_plans.where((plan) => plan.isParkingAdminPlan));
   }
 
   @override
@@ -711,6 +677,14 @@ class MockBillingRepository implements BillingRepository {
       throw const BillingException(
         'Plan is not configured in the server catalog.',
         status: 400,
+      );
+    }
+    // SUB-03 answers 403 "plan de otra audiencia".
+    if (!plan.isParkingAdminPlan) {
+      throw BillingException(
+        'The plan $planCode belongs to another audience; '
+        '${RoleGuard.appRole} accounts cannot subscribe to it.',
+        status: 403,
       );
     }
     return _quotedPlan(plan);
@@ -903,7 +877,12 @@ class MockBillingRepository implements BillingRepository {
     if (payment.status != PaymentStatus.approved) {
       throw _conflict('The refund requires an approved payment.');
     }
-    if (amountCents < 1 || amountCents > payment.amountCents) {
+    // REF-02: at least 0.01 and never more than what is left unrefunded.
+    final remaining = refundableCents(
+      payment,
+      _refunds.where((refund) => refund.paymentId == paymentId),
+    );
+    if (amountCents < 1 || amountCents > remaining) {
       throw _conflict('The refund amount is not valid for this payment.');
     }
     final refund = Refund(

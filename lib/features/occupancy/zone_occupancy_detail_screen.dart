@@ -1,182 +1,237 @@
 import 'package:flutter/material.dart';
 
-import '../../app/admin_navigation.dart';
 import '../../app/app_scope.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/cards.dart';
 import '../../core/widgets/choice_chip_bar.dart';
 import '../../core/widgets/page_layout.dart';
-import '../../core/widgets/status_badge.dart';
-import '../guests/new_guest_session_screen.dart';
+import '../../core/widgets/state_views.dart';
+import '../../data/models/parking_spot.dart';
+import '../../data/repositories/monitoring_repository.dart';
+import '../../state/monitoring_controller.dart';
+import 'spot_widgets.dart';
 
-/// Live status of one zone with a tappable spot list (mockup 32).
+enum _SpotFilter { all, available, occupied, issues }
+
 class ZoneOccupancyDetailScreen extends StatefulWidget {
-  const ZoneOccupancyDetailScreen({super.key});
+  const ZoneOccupancyDetailScreen({super.key, this.zoneId});
+
+  final String? zoneId;
 
   @override
   State<ZoneOccupancyDetailScreen> createState() =>
       _ZoneOccupancyDetailScreenState();
 }
 
-class _ZoneOccupancyDetailScreenState
-    extends State<ZoneOccupancyDetailScreen> {
+class _ZoneOccupancyDetailScreenState extends State<ZoneOccupancyDetailScreen> {
   _SpotFilter _filter = _SpotFilter.all;
 
-  static const _spots = [
-    _SpotRow('A-01', 'Available', 'No reservation · Sensor healthy',
-        BadgeTone.success, 'Available'),
-    _SpotRow('A-02', 'Occupied', 'Reservation SG-4817 · Sensor healthy',
-        BadgeTone.neutral, 'Occupied'),
-    _SpotRow('A-03', 'Unavailable', 'Sensor offline · New sessions blocked',
-        BadgeTone.danger, 'Issue'),
-    _SpotRow('A-04', 'Occupied', 'Guest GP-1048 · Sensor healthy',
-        BadgeTone.neutral, 'Occupied'),
-    _SpotRow('A-05', 'Available', 'Reserved SG-4825 · New sessions blocked',
-        BadgeTone.warning, 'Reserved'),
-    _SpotRow('A-06', 'Available', 'No reservation · Sensor healthy',
-        BadgeTone.success, 'Available'),
-  ];
-
-  bool _visible(_SpotRow spot) => switch (_filter) {
+  bool _matches(ParkingSpot spot) => switch (_filter) {
     _SpotFilter.all => true,
-    _SpotFilter.profile => spot.state == 'Reserved',
-    _SpotFilter.occupied => spot.state == 'Occupied',
-    _SpotFilter.issues => spot.state == 'Issue',
+    _SpotFilter.available => spot.occupancy == OccupancyStatus.available,
+    _SpotFilter.occupied => spot.occupancy == OccupancyStatus.occupied,
+    _SpotFilter.issues =>
+      spot.occupancy == OccupancyStatus.unavailable || spot.hasIssue,
   };
 
-  void _openDetails(_SpotRow spot) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) => _SpotDetailsSheet(spot: spot),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final admin = AdminScope.of(context);
-    final visible = _spots.where(_visible).toList();
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Zone occupancy')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: PageContainer(
+  Future<void> _openSpot(
+    BuildContext context,
+    MonitoringController monitoring,
+    ParkingSpot spot,
+  ) async {
+    if (monitoring.forbidden) return;
+    try {
+      final observation = await monitoring.occupancyForSpot(spot.id);
+      if (!context.mounted) return;
+      final sensor = monitoring.sensorForSpot(spot.id);
+      await showModalBottomSheet<void>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  admin.facilityName,
+                  'Spot ${spot.code}',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Level 1 · Last updated 5 seconds ago',
-                  style: Theme.of(context).textTheme.bodySmall,
+                const SizedBox(height: 12),
+                InfoRow(
+                  title: 'Physical occupancy',
+                  trailing: observation.occupancy.name,
                 ),
-                const SizedBox(height: 16),
-                const Row(
-                  children: [
-                    Expanded(
-                      child: _Metric(
-                        value: '14',
-                        label: 'Occupied',
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: _Metric(
-                        value: '6',
-                        label: 'Available',
-                        color: AppColors.success,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: _Metric(
-                        value: '2',
-                        label: 'Reserved',
-                        color: AppColors.warning,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: _Metric(
-                        value: '2',
-                        label: 'Unavailable',
-                        color: AppColors.danger,
-                      ),
-                    ),
-                  ],
+                InfoRow(
+                  title: 'Reason',
+                  trailing: observation.reason.isEmpty
+                      ? '—'
+                      : observation.reason,
                 ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Live status for your assigned zone',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Tap a spot for Occupancy, Reservation, Guest Session '
-                        'and Sensor Health.',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13.5,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
+                InfoRow(
+                  title: 'Sensor',
+                  trailing: sensor?.status.name ?? 'No active sensor',
                 ),
-                const SizedBox(height: 14),
-                ChoiceChipBar<_SpotFilter>(
-                  options: const [
-                    ChipOption(_SpotFilter.all, 'All'),
-                    ChipOption(_SpotFilter.profile, 'Profile'),
-                    ChipOption(_SpotFilter.occupied, 'Occupied'),
-                    ChipOption(_SpotFilter.issues, 'Issues'),
-                  ],
-                  selected: _filter,
-                  onSelected: (value) => setState(() => _filter = value),
-                ),
-                const SizedBox(height: 14),
-                SectionCard(
-                  children: [
-                    for (final spot in visible)
-                      InfoRow(
-                        title: '${spot.code} · ${spot.state}',
-                        subtitle: spot.detail,
-                        trailingWidget: StatusBadge(
-                          label: spot.badge,
-                          tone: spot.tone,
-                        ),
-                        onTap: () => _openDetails(spot),
-                      ),
-                  ],
+                InfoRow(
+                  title: 'Last reading',
+                  trailing: observation.occurredAt?.toLocal().toString() ?? '—',
                 ),
               ],
             ),
           ),
         ),
-      ),
+      );
+    } on MonitoringException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final admin = AdminScope.of(context);
+    final monitoring = AppScope.of(context).monitoring;
+    final zone = admin.zoneById(widget.zoneId ?? '') ?? admin.zones.firstOrNull;
+    if (monitoring.forbidden) {
+      return ErrorView(
+        message: '${monitoring.error ?? 'Access denied.'} (HTTP 403)',
+      );
+    }
+    if (zone == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Zone occupancy')),
+        body: EmptyView(
+          icon: Icons.location_off_outlined,
+          title: 'No parking zones',
+          message: 'No zones are assigned to this parking tenant.',
+        ),
+      );
+    }
+    final spots = admin.spotsOfZone(zone.id).where(_matches).toList();
+    final zoneSpots = admin.spotsOfZone(zone.id);
+    final occupied = zoneSpots
+        .where((spot) => spot.occupancy == OccupancyStatus.occupied)
+        .length;
+    final available = zoneSpots
+        .where((spot) => spot.occupancy == OccupancyStatus.available)
+        .length;
+    final unavailable = zoneSpots
+        .where(
+          (spot) =>
+              spot.occupancy == OccupancyStatus.unavailable ||
+              spot.occupancy == OccupancyStatus.unknown,
+        )
+        .length;
+
+    return ListenableBuilder(
+      listenable: monitoring,
+      builder: (context, _) {
+        if (monitoring.forbidden) {
+          return ErrorView(
+            message: '${monitoring.error ?? 'Access denied.'} (HTTP 403)',
+          );
+        }
+        return Scaffold(
+          appBar: AppBar(title: Text(zone.name)),
+          body: SafeArea(
+            child: ListView(
+              children: [
+                PageContainer(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        admin.facilityName,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text(
+                        'Physical occupancy · ${admin.snapshot?.updatedAt.toLocal() ?? admin.now.toLocal()}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _Metric(
+                            value: '$occupied',
+                            label: 'Occupied',
+                            color: AppColors.danger,
+                          ),
+                          _Metric(
+                            value: '$available',
+                            label: 'Available',
+                            color: AppColors.success,
+                          ),
+                          _Metric(
+                            value: '$unavailable',
+                            label: 'Unavailable',
+                            color: AppColors.warning,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      ChoiceChipBar<_SpotFilter>(
+                        options: const [
+                          ChipOption(_SpotFilter.all, 'All'),
+                          ChipOption(_SpotFilter.available, 'Available'),
+                          ChipOption(_SpotFilter.occupied, 'Occupied'),
+                          ChipOption(_SpotFilter.issues, 'Issues'),
+                        ],
+                        selected: _filter,
+                        onSelected: (value) => setState(() => _filter = value),
+                      ),
+                      const SizedBox(height: 14),
+                      if (zoneSpots.isEmpty)
+                        const Card(
+                          child: EmptyView(
+                            title: 'This zone has no spots',
+                            message:
+                                'Add parking spots to view physical occupancy.',
+                          ),
+                        )
+                      else if (spots.isEmpty)
+                        const Card(
+                          child: EmptyView(
+                            title: 'No spots match this filter',
+                            message: 'Choose another occupancy filter.',
+                          ),
+                        )
+                      else
+                        ZoneSpotsCard(
+                          title: zone.name,
+                          totalSpots: zoneSpots.length,
+                          spots: spots,
+                          onSpotTap: (spot) =>
+                              _openSpot(context, monitoring, spot),
+                        ),
+                      if (monitoring.error != null)
+                        Card(
+                          child: ListTile(
+                            title: Text(
+                              '${monitoring.error}'
+                              '${monitoring.errorStatus == null ? '' : ' (HTTP ${monitoring.errorStatus})'}',
+                            ),
+                            trailing: IconButton(
+                              onPressed: monitoring.loading
+                                  ? null
+                                  : monitoring.load,
+                              icon: const Icon(Icons.refresh),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
-
-enum _SpotFilter { all, profile, occupied, issues }
 
 class _Metric extends StatelessWidget {
   const _Metric({
@@ -190,16 +245,10 @@ class _Metric extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
+  Widget build(BuildContext context) => Card(
+    child: Padding(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             value,
@@ -209,134 +258,9 @@ class _Metric extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-          ),
+          Text(label),
         ],
       ),
-    );
-  }
-}
-
-class _SpotRow {
-  const _SpotRow(this.code, this.state, this.detail, this.tone, this.badge);
-
-  final String code;
-  final String state;
-  final String detail;
-  final BadgeTone tone;
-  final String badge;
-}
-
-/// Bottom sheet with the four spot attributes from the mockup.
-class _SpotDetailsSheet extends StatelessWidget {
-  const _SpotDetailsSheet({required this.spot});
-
-  final _SpotRow spot;
-
-  @override
-  Widget build(BuildContext context) {
-    final available = spot.state == 'Available';
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Spot details', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
-            Text(
-              'Javier Prado Parking · Level 1',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Spot ${spot.code}',
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _DetailRow(
-              label: 'Occupancy Status',
-              value: spot.state,
-            ),
-            _DetailRow(
-              label: 'Reservation Status',
-              value: spot.state == 'Occupied' ? 'SG-4817' : 'None',
-            ),
-            _DetailRow(
-              label: 'Guest Session',
-              value: spot.state == 'Occupied' ? 'GP-1048' : 'None',
-            ),
-            _DetailRow(
-              label: 'Sensor Health',
-              value: spot.state == 'Unavailable' ? 'Offline' : 'Healthy',
-            ),
-            const SizedBox(height: 18),
-            FilledButton(
-              onPressed: available
-                  ? () {
-                      Navigator.of(context).pop();
-                      pushAdminPage<void>(
-                        context,
-                        const NewGuestSessionScreen(),
-                      );
-                    }
-                  : null,
-              child: const Text('New Guest Session'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    ),
+  );
 }

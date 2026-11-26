@@ -1,6 +1,19 @@
 import 'billing_types.dart';
 import 'digital_payment.dart';
 
+/// What REF-02 still accepts for [payment]: its amount minus every refund
+/// that is not FAILED. The backend answers 409 when this remainder is
+/// exceeded, and a new refund must leave at least 0.01.
+int refundableCents(DigitalPayment payment, Iterable<Refund> refunds) {
+  var refundedCents = 0;
+  for (final refund in refunds) {
+    if (refund.status == RefundStatus.failed) continue;
+    refundedCents += refund.amountCents;
+  }
+  final remaining = payment.amountCents - refundedCents;
+  return remaining < 0 ? 0 : remaining;
+}
+
 /// `RefundView` (contract §3.1).
 class Refund {
   const Refund({

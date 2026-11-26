@@ -199,31 +199,6 @@ class BillingController extends ChangeNotifier {
     ),
   );
 
-  Future<DigitalPayment> createReservationPayment({
-    required String reservationId,
-    required String tokenId,
-    String? idempotencyKey,
-  }) => _track(
-    _repository.createReservationPayment(
-      reservationId: reservationId,
-      tokenId: tokenId,
-      idempotencyKey:
-          idempotencyKey ?? Idempotency.newKey(prefix: 'reservation'),
-    ),
-  );
-
-  Future<DigitalPayment> createAdditionalChargePayment({
-    required String chargeId,
-    required String tokenId,
-    String? idempotencyKey,
-  }) => _track(
-    _repository.createAdditionalChargePayment(
-      chargeId: chargeId,
-      tokenId: tokenId,
-      idempotencyKey: idempotencyKey ?? Idempotency.newKey(prefix: 'charge'),
-    ),
-  );
-
   Future<DigitalPayment> process(String paymentId) =>
       _track(_repository.processPayment(paymentId));
 

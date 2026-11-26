@@ -84,7 +84,8 @@ class RemoteParkingRepository implements ParkingRepository {
           final occupancy = switch (state?['physicalOccupancy']) {
             'AVAILABLE' => OccupancyStatus.available,
             'OCCUPIED' => OccupancyStatus.occupied,
-            _ => OccupancyStatus.unavailable,
+            'UNAVAILABLE' => OccupancyStatus.unavailable,
+            _ => OccupancyStatus.unknown,
           };
           final reservation = activeReservations[id] ?? currentReservations[id];
           return ParkingSpot(
@@ -112,6 +113,8 @@ class RemoteParkingRepository implements ParkingRepository {
             lastReadingAt:
                 _date(sensor?['lastSeenAt']) ??
                 DateTime.fromMillisecondsSinceEpoch(0),
+            operationalStatus: row['operationalStatus'] as String? ?? 'UNKNOWN',
+            availabilityReason: state?['reason'] as String? ?? '',
             guestSessionId: openGuests[id]?['guestSessionId'] as String?,
           );
         }).toList();

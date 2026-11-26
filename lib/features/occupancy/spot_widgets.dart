@@ -63,6 +63,7 @@ class ZoneSpotsCard extends StatelessWidget {
     required this.spots,
     required this.onSpotTap,
     this.showLane = true,
+    this.onTitleTap,
   });
 
   final String title;
@@ -70,6 +71,7 @@ class ZoneSpotsCard extends StatelessWidget {
   final List<ParkingSpot> spots;
   final ValueChanged<ParkingSpot> onSpotTap;
   final bool showLane;
+  final VoidCallback? onTitleTap;
 
   @override
   Widget build(BuildContext context) {
@@ -87,12 +89,18 @@ class ZoneSpotsCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    title.toUpperCase(),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                  child: InkWell(
+                    onTap: onTitleTap,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        title.toUpperCase(),
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -194,99 +202,87 @@ class SpotTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final availability = spot.availability;
-    final (Color background, Color foreground) = switch (availability) {
-      SpotAvailability.available => (
-        AppColors.spotAvailable,
-        AppColors.onPrimary,
-      ),
-      SpotAvailability.reserved => (
-        AppColors.spotReserved,
-        AppColors.onPrimary,
-      ),
-      SpotAvailability.occupied => (
-        AppColors.spotOccupied,
-        AppColors.textPrimary,
-      ),
-      SpotAvailability.unavailable => (
-        AppColors.spotUnavailable,
-        AppColors.textPrimary,
-      ),
-    };
-    final Color? borderColor =
-        spot.hasUnvalidatedOccupancy ||
-            availability == SpotAvailability.unavailable
-        ? AppColors.danger
-        : null;
-    final label = spot.hasUnvalidatedOccupancy
-        ? 'Unvalidated'
-        : spot.guestSessionId != null &&
-              availability == SpotAvailability.occupied
-        ? 'Guest'
-        : availability.label;
+    final inactive =
+        spot.operationalStatus == 'INACTIVE' ||
+        spot.operationalStatus == 'MAINTENANCE';
+    final (Color background, Color foreground) = inactive
+        ? (AppColors.border, AppColors.textSecondary)
+        : switch (spot.occupancy) {
+            OccupancyStatus.available => (
+              AppColors.spotAvailable,
+              AppColors.onPrimary,
+            ),
+            OccupancyStatus.occupied => (
+              AppColors.dangerMuted,
+              AppColors.textPrimary,
+            ),
+            OccupancyStatus.unavailable => (
+              AppColors.warningMuted,
+              AppColors.textPrimary,
+            ),
+            OccupancyStatus.unknown => (
+              AppColors.warningMuted,
+              AppColors.textPrimary,
+            ),
+          };
+    final label = inactive ? spot.operationalStatus : spot.occupancy.label;
+    final tooltip = spot.availabilityReason;
 
-    return Semantics(
-      button: true,
-      label: 'Spot ${spot.code}, $label',
-      child: Material(
-        color: background,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: borderColor == null
-              ? BorderSide.none
-              : BorderSide(color: borderColor, width: 1.6),
-        ),
-        child: InkWell(
-          key: Key('spot-${spot.code}'),
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  spot.code,
-                  style: TextStyle(
-                    color: foreground,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  spot.type.code,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: spot.sensorReliable
-                            ? AppColors.warning
-                            : AppColors.danger,
-                        shape: BoxShape.circle,
-                      ),
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: 'Spot ${spot.code}, $label',
+        child: Material(
+          color: background,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: inactive
+                  ? AppColors.textMuted
+                  : spot.occupancy == OccupancyStatus.occupied
+                  ? AppColors.danger
+                  : spot.occupancy == OccupancyStatus.unavailable ||
+                        spot.occupancy == OccupancyStatus.unknown
+                  ? AppColors.warning
+                  : Colors.transparent,
+            ),
+          ),
+          child: InkWell(
+            key: Key('spot-${spot.code}'),
+            borderRadius: BorderRadius.circular(8),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    spot.code,
+                    style: TextStyle(
+                      color: foreground,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
                     ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: foreground, fontSize: 10.5),
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    spot.type.code,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: foreground, fontSize: 10.5),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

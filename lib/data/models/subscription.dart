@@ -56,6 +56,12 @@ class SubscriptionPlan {
   final int? parkingSpotCount;
 
   bool get isDriverPlan => audience == 'DRIVER';
+
+  /// Audience of the catalog this app may quote and subscribe to: SUB-03
+  /// answers 403 "plan de otra audiencia" for anything else.
+  static const parkingAdminAudience = 'PARKING_ADMIN';
+
+  bool get isParkingAdminPlan => audience == parkingAdminAudience;
 }
 
 /// `SubscriptionView` (contract §3.1).

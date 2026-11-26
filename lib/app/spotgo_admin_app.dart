@@ -4,13 +4,17 @@ import '../core/theme/app_theme.dart';
 import '../data/mock/mock_auth_repository.dart';
 import '../data/mock/mock_billing_repository.dart';
 import '../data/mock/mock_parking_repository.dart';
+import '../data/mock/mock_monitoring_repository.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/billing_repository.dart';
+import '../data/repositories/monitoring_repository.dart';
 import '../data/repositories/parking_repository.dart';
 import '../features/auth/login_screen.dart';
 import '../features/shell/admin_shell.dart';
 import '../state/auth_controller.dart';
 import '../state/billing_controller.dart';
+import '../state/monitoring_controller.dart';
+import '../state/reports_controller.dart';
 import 'app_scope.dart';
 
 class SpotGoAdminApp extends StatefulWidget {
@@ -19,12 +23,14 @@ class SpotGoAdminApp extends StatefulWidget {
     this.authRepository,
     this.parkingRepository,
     this.billingRepository,
+    this.monitoringRepository,
     this.liveRefreshInterval = const Duration(seconds: 5),
   });
 
   final AuthRepository? authRepository;
   final ParkingRepository? parkingRepository;
   final BillingRepository? billingRepository;
+  final MonitoringRepository? monitoringRepository;
 
   /// Polling period for live occupancy (US05 requires updates within 5 s).
   /// Null disables polling (used by tests).
@@ -43,11 +49,24 @@ class _SpotGoAdminAppState extends State<SpotGoAdminApp> {
   late final BillingController _billing = BillingController(
     repository: widget.billingRepository ?? MockBillingRepository(),
   );
+  late final MonitoringRepository _monitoringRepository =
+      widget.monitoringRepository ?? MockMonitoringRepository();
+  late final MonitoringController _monitoring = MonitoringController(
+    repository: _monitoringRepository,
+    debugReadingWritesEnabled: const bool.fromEnvironment(
+      'SPOTGO_DEBUG_SENSOR_READINGS',
+    ),
+  );
+  late final ReportsController _reports = ReportsController(
+    repository: _monitoringRepository,
+  );
 
   @override
   void dispose() {
     _auth.dispose();
     _billing.dispose();
+    _monitoring.dispose();
+    _reports.dispose();
     super.dispose();
   }
 
@@ -57,6 +76,8 @@ class _SpotGoAdminAppState extends State<SpotGoAdminApp> {
       auth: _auth,
       parkingRepository: _parkingRepository,
       billing: _billing,
+      monitoring: _monitoring,
+      reports: _reports,
       child: MaterialApp(
         title: 'SpotGo Parking Admin',
         debugShowCheckedModeBanner: false,

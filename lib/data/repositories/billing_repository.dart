@@ -40,26 +40,10 @@ abstract interface class BillingRepository {
 
   Future<DigitalPayment> getPayment(String paymentId);
 
-  Future<DigitalPayment> createReservationPayment({
-    required String reservationId,
-    required String tokenId,
-    required String idempotencyKey,
-  });
-
-  Future<DigitalPayment> createReservationChangePayment({
-    required String changeId,
-    required String tokenId,
-    required String idempotencyKey,
-  });
-
+  /// PAY-05. Reservation (PAY-03), reservation change (PAY-04) and additional
+  /// charge (PAY-06) payments are DRIVER-only and are deliberately absent.
   Future<DigitalPayment> createSubscriptionPayment({
     required String planCode,
-    required String tokenId,
-    required String idempotencyKey,
-  });
-
-  Future<DigitalPayment> createAdditionalChargePayment({
-    required String chargeId,
     required String tokenId,
     required String idempotencyKey,
   });
@@ -74,8 +58,11 @@ abstract interface class BillingRepository {
   Future<List<PaymentAttempt>> listAttempts(String paymentId);
 
   // ── Subscriptions (SUB-01…05) ─────────────────────────────────────────
+  /// Catalog restricted to `PARKING_ADMIN` plans: SUB-02 itself is
+  /// unfiltered, so DRIVER plans are removed before they reach the UI.
   Future<List<SubscriptionPlan>> listPlans();
 
+  /// 403 when [planCode] belongs to another audience (contract SUB-03).
   Future<SubscriptionPlan> quotePlan(String planCode);
 
   Future<List<Subscription>> listSubscriptions();
@@ -100,7 +87,9 @@ abstract interface class BillingRepository {
   /// Sum of the `OPEN` balances, in cents (`{"amount": n}`).
   Future<int> totalBalanceCents();
 
-  // ── Refunds (REF-01…03) ──────────────────────────────────────────────
+  // ── Refunds (REF-01…03, PA/SA) ───────────────────────────────────────
+  /// Refunds of [paymentId] (REF-01). This app reaches [paymentId] through
+  /// the tenant reservations (RES-01), never through a driver's payments.
   Future<List<Refund>> listRefunds(String paymentId);
 
   Future<Refund> requestRefund({

@@ -1,3 +1,4 @@
+import '../../core/api/role_guard.dart';
 import '../models/additional_charge.dart';
 import '../models/billing_document.dart';
 import '../models/digital_payment.dart';
@@ -17,6 +18,9 @@ class RemoteBillingRepository implements BillingRepository {
   Future<T> _guard<T>(Future<T> Function() action) async {
     try {
       return await action();
+    } on RoleGuardException catch (error) {
+      // A DRIVER-only endpoint reached from this app is a contract 403.
+      throw BillingException(error.message, status: 403);
     } on ApiException catch (error) {
       throw BillingException(error.message, status: error.status);
     }
@@ -69,49 +73,24 @@ class RemoteBillingRepository implements BillingRepository {
       _guard(() async =>
           DigitalPayment.fromJson(await api.object(path, method: 'POST', body: body)));
 
-  @override
-  Future<DigitalPayment> createReservationPayment({
-    required String reservationId,
-    required String tokenId,
-    required String idempotencyKey,
-  }) => _createPayment(
-        '/digital-payments/reservations/$reservationId',
-        {'tokenId': tokenId, 'idempotencyKey': idempotencyKey},
-      );
-
-  @override
-  Future<DigitalPayment> createReservationChangePayment({
-    required String changeId,
-    required String tokenId,
-    required String idempotencyKey,
-  }) => _createPayment(
-        '/digital-payments/reservation-changes/$changeId',
-        {'tokenId': tokenId, 'idempotencyKey': idempotencyKey},
-      );
-
+  /// PAY-05 (D, PA). The quote doubles as the audience guard: SUB-03 answers
+  /// 403 "plan de otra audiencia" before a DRIVER plan can be charged.
   @override
   Future<DigitalPayment> createSubscriptionPayment({
     required String planCode,
     required String tokenId,
     required String idempotencyKey,
-  }) => _createPayment(
-        '/digital-payments/subscriptions',
-        {
-          'planCode': planCode,
-          'tokenId': tokenId,
-          'idempotencyKey': idempotencyKey,
-        },
-      );
-
-  @override
-  Future<DigitalPayment> createAdditionalChargePayment({
-    required String chargeId,
-    required String tokenId,
-    required String idempotencyKey,
-  }) => _createPayment(
-        '/digital-payments/additional-charges/$chargeId',
-        {'tokenId': tokenId, 'idempotencyKey': idempotencyKey},
-      );
+  }) async {
+    await quotePlan(planCode);
+    return _createPayment(
+      '/digital-payments/subscriptions',
+      {
+        'planCode': planCode,
+        'tokenId': tokenId,
+        'idempotencyKey': idempotencyKey,
+      },
+    );
+  }
 
   @override
   Future<DigitalPayment> processPayment(String paymentId) => _guard(() async =>
@@ -146,16 +125,30 @@ class RemoteBillingRepository implements BillingRepository {
 
   // ── Subscriptions (SUB-01…05) ─────────────────────────────────────────
 
+  /// SUB-02 answers the whole catalog (D and PA plans included). DRIVER rows
+  /// are dropped here so this app never offers a plan it cannot pay for.
   @override
   Future<List<SubscriptionPlan>> listPlans() => _guard(() async =>
       (await api.list('/subscriptions/plans'))
           .map(SubscriptionPlan.fromJson)
+          .where((plan) => plan.isParkingAdminPlan)
           .toList());
 
   @override
-  Future<SubscriptionPlan> quotePlan(String planCode) => _guard(() async =>
-      SubscriptionPlan.fromJson(
-          await api.object('/subscriptions/plans/$planCode/quote')));
+  Future<SubscriptionPlan> quotePlan(String planCode) => _guard(() async {
+        final plan = SubscriptionPlan.fromJson(
+            await api.object('/subscriptions/plans/$planCode/quote'));
+        // The backend already answers 403 for another audience; this check
+        // keeps the app from charging a plan the quote did not authorize.
+        if (plan.audience.isNotEmpty && !plan.isParkingAdminPlan) {
+          throw BillingException(
+            'The plan $planCode belongs to another audience; '
+            '${RoleGuard.appRole} accounts cannot subscribe to it.',
+            status: 403,
+          );
+        }
+        return plan;
+      });
 
   @override
   Future<List<Subscription>> listSubscriptions() => _guard(() async =>

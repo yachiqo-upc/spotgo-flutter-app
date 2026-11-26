@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../core/api/role_guard.dart';
 import '../../domain/parking_rules.dart';
 
 typedef Json = Map<String, dynamic>;
@@ -38,14 +39,13 @@ class SpotGoApi {
     Json? body,
     Map<String, String>? query,
     bool auth = true,
-  }) async =>
-      (await request(
-        path,
-        method: method,
-        body: body,
-        query: query,
-        auth: auth,
-      )) as Json;
+  }) async => (await request(
+    path,
+    method: method,
+    body: body,
+    query: query,
+    auth: auth,
+  )) as Json;
 
   Future<List<Json>> list(String path, [Map<String, String>? query]) async =>
       (await request(path, query: query) as List<dynamic>).cast<Json>();
@@ -56,11 +56,60 @@ class SpotGoApi {
     Json? body,
     Map<String, String>? query,
     bool auth = true,
+  }) => _authorized(
+    path,
+    method,
+    auth,
+    (token) => _send(path, method, body, query, token),
+  );
+
+  Future<List<int>> bytes(String path) => _authorized(
+    path,
+    'GET',
+    true,
+    (token) => _sendRaw(path, 'GET', null, token, accept: 'image/*'),
+  );
+
+  Future<void> uploadImage(
+    String path, {
+    required List<int> bytes,
+    required String contentType,
   }) async {
+    final boundary = 'spotgo-${DateTime.now().microsecondsSinceEpoch}';
+    final prefix = utf8.encode(
+      '--$boundary\r\n'
+      'Content-Disposition: form-data; name="image"; filename="evidence.${contentType == 'image/png' ? 'png' : 'jpg'}"\r\n'
+      'Content-Type: $contentType\r\n\r\n',
+    );
+    final suffix = utf8.encode('\r\n--$boundary--\r\n');
+    final body = <int>[...prefix, ...bytes, ...suffix];
+    await _authorized(
+      path,
+      'PUT',
+      true,
+      (token) => _sendRaw(
+        path,
+        'PUT',
+        null,
+        token,
+        body: body,
+        contentType: 'multipart/form-data; boundary=$boundary',
+      ),
+    );
+  }
+
+  Future<T> _authorized<T>(
+    String path,
+    String method,
+    bool auth,
+    Future<T> Function(String? token) send,
+  ) async {
+    // Contract choke point: DRIVER-only endpoints never leave this app.
+    RoleGuard.ensureCanCall(method, path);
     final token = auth ? _accessToken : null;
     final version = _sessionVersion;
     try {
-      return await _send(path, method, body, query, token);
+      return await send(token);
     } on ApiException catch (error) {
       if (error.status != 401 ||
           !auth ||
@@ -77,7 +126,7 @@ class SpotGoApi {
         }
       }
       if (version != _sessionVersion) rethrow;
-      return _send(path, method, body, query, _accessToken);
+      return send(_accessToken);
     }
   }
 
@@ -141,6 +190,56 @@ class SpotGoApi {
       );
     }
     return payload;
+  }
+
+  Future<List<int>> _sendRaw(
+    String path,
+    String method,
+    Map<String, String>? query,
+    String? token, {
+    List<int>? body,
+    String? contentType,
+    String accept = 'application/json',
+  }) async {
+    final uri = baseUrl.replace(path: '/api/v1$path', queryParameters: query);
+    final request = await _http
+        .openUrl(method, uri)
+        .timeout(const Duration(seconds: 8));
+    request.followRedirects = false;
+    request.headers.set(HttpHeaders.acceptHeader, accept);
+    if (token != null) {
+      request.headers.set(HttpHeaders.authorizationHeader, '******');
+    }
+    if (contentType != null) {
+      request.headers.contentType = ContentType.parse(contentType);
+    }
+    if (body != null) request.add(body);
+    final response = await request.close().timeout(
+      const Duration(seconds: 12),
+      onTimeout: () {
+        request.abort();
+        throw TimeoutException('The SpotGo API did not respond.');
+      },
+    );
+    final result = await response.fold<List<int>>(
+      <int>[],
+      (collected, chunk) => collected..addAll(chunk),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      dynamic payload;
+      if (result.isNotEmpty) {
+        try {
+          payload = jsonDecode(utf8.decode(result));
+        } on FormatException {
+          payload = null;
+        }
+      }
+      throw ApiException(
+        response.statusCode,
+        errorMessage(payload, response.statusCode),
+      );
+    }
+    return result;
   }
 
   /// Tolerant error parser (contract §0.4): `message` → `details` → `error`,
