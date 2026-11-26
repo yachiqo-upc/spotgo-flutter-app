@@ -35,7 +35,14 @@ abstract final class MockSeed {
       String? reservationCode,
       SensorHealth health = SensorHealth.healthy,
       String? guest,
+      bool noSensor = false,
     }) {
+      final bookable =
+          !noSensor &&
+          health != SensorHealth.failed &&
+          occupancy == OccupancyStatus.available &&
+          reservation == ReservationState.none &&
+          guest == null;
       return ParkingSpot(
         id: code,
         code: code,
@@ -46,9 +53,18 @@ abstract final class MockSeed {
             : occupancy,
         reservation: reservation,
         reservationCode: reservationCode,
-        sensorId: 'SEN-JP-${code.replaceAll('-', '')}',
-        sensorHealth: health,
+        sensorId: noSensor ? '' : 'SEN-JP-${code.replaceAll('-', '')}',
+        sensorHealth: noSensor ? SensorHealth.noSensor : health,
         lastReadingAt: health == SensorHealth.failed ? ago(38) : ago(0),
+        bookable: bookable,
+        availabilityReason: bookable
+            ? 'FUTURE_SLOT_NO_KNOWN_BLOCK'
+            : noSensor
+            ? 'NO_ACTIVE_SENSOR'
+            : health == SensorHealth.failed
+            ? 'Sensor unavailable'
+            : 'RESERVATION_OR_OPEN_STAY',
+        sensorHealthReason: noSensor ? 'NO_ACTIVE_SENSOR' : '',
         guestSessionId: guest,
       );
     }
@@ -77,7 +93,7 @@ abstract final class MockSeed {
       ),
       spot('A-06', SpotType.standard, occupancy: occ, guest: 'GP-1046'),
       spot('A-07', SpotType.standard, occupancy: occ),
-      spot('A-08', SpotType.standard),
+      spot('A-08', SpotType.standard, noSensor: true),
       spot('B-01', SpotType.covered, occupancy: occ, guest: 'GP-1048'),
       spot(
         'B-02',

@@ -815,7 +815,11 @@ class _SpotDetailsSheetState extends State<_SpotDetailsSheet> {
                     if (!widget.spot.canStartGuestSession ||
                         !(widget.zone?.isActive ?? false))
                       SpotNotice(
-                        observation.reason.isNotEmpty ? observation.reason : 'A sensor reading is required before this spot can be used.',
+                        !widget.spot.bookable
+                            ? widget.spot.availabilityReasonLabel
+                            : observation.reason.isNotEmpty
+                            ? observation.reason
+                            : 'A sensor reading is required before this spot can be used.',
                       ),
                     if (widget.spot.canStartGuestSession &&
                         (widget.zone?.isActive ?? false)) ...[

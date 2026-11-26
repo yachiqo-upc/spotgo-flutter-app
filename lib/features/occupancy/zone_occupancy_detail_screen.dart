@@ -63,14 +63,29 @@ class _ZoneOccupancyDetailScreenState extends State<ZoneOccupancyDetailScreen> {
                   trailing: observation.occupancy.name,
                 ),
                 InfoRow(
-                  title: 'Reason',
+                  title: 'Reservation',
+                  subtitle: spot.reservationCode ?? 'No reservation linked',
+                  trailing: spot.reservation.label,
+                ),
+                InfoRow(
+                  title: 'Sensor health',
+                  subtitle: [
+                    if (sensor != null) sensor.sensorId,
+                    if (spot.sensorHealthReasonLabel.isNotEmpty)
+                      spot.sensorHealthReasonLabel,
+                  ].join(' · '),
+                  trailing: spot.sensorHealth.label,
+                ),
+                InfoRow(
+                  title: 'Availability',
+                  subtitle: spot.availabilityReasonLabel,
+                  trailing: spot.bookable ? 'Bookable' : 'Not bookable',
+                ),
+                InfoRow(
+                  title: 'Occupancy reason',
                   trailing: observation.reason.isEmpty
                       ? '—'
                       : observation.reason,
-                ),
-                InfoRow(
-                  title: 'Sensor',
-                  trailing: sensor?.status.name ?? 'No active sensor',
                 ),
                 InfoRow(
                   title: 'Last reading',

@@ -300,6 +300,14 @@ class SpotStateTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final availabilityLabel = spot.bookable
+        ? 'Bookable'
+        : 'Not bookable · ${spot.availabilityReasonLabel}';
+    final sensorDetails = [
+      if (spot.sensorId.isNotEmpty) spot.sensorId,
+      if (spot.sensorHealthReasonLabel.isNotEmpty)
+        spot.sensorHealthReasonLabel,
+    ].join(' · ');
     return SectionCard(
       children: [
         InfoRow(
@@ -314,8 +322,13 @@ class SpotStateTable extends StatelessWidget {
         ),
         InfoRow(
           title: 'Sensor',
-          subtitle: spot.sensorId,
+          subtitle: sensorDetails.isEmpty ? '—' : sensorDetails,
           trailing: spot.sensorHealth.label,
+        ),
+        InfoRow(
+          title: 'Availability',
+          subtitle: spot.availabilityReasonLabel,
+          trailing: availabilityLabel,
         ),
         InfoRow(
           title: 'Guest session',

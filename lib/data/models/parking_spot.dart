@@ -36,7 +36,9 @@ enum ReservationState {
 enum SensorHealth {
   healthy('Online'),
   degraded('Degraded'),
-  failed('Offline');
+  failed('Offline'),
+  noSensor('No active sensor'),
+  unknown('Unknown');
 
   const SensorHealth(this.label);
 
@@ -66,8 +68,10 @@ class ParkingSpot {
     required this.sensorId,
     required this.sensorHealth,
     required this.lastReadingAt,
+    this.bookable = true,
     this.operationalStatus = 'ACTIVE',
     this.availabilityReason = '',
+    this.sensorHealthReason = '',
     this.reservationCode,
     this.guestSessionId,
   });
@@ -82,11 +86,15 @@ class ParkingSpot {
   final String sensorId;
   final SensorHealth sensorHealth;
   final DateTime lastReadingAt;
+  final bool bookable;
   final String operationalStatus;
   final String availabilityReason;
+  final String sensorHealthReason;
   final String? guestSessionId;
 
-  bool get sensorReliable => sensorHealth != SensorHealth.failed;
+  bool get sensorReliable =>
+      sensorHealth == SensorHealth.healthy ||
+      sensorHealth == SensorHealth.degraded;
 
   SpotAvailability get availability {
     if (!sensorReliable ||
@@ -105,7 +113,32 @@ class ParkingSpot {
     return SpotAvailability.available;
   }
 
-  bool get canStartGuestSession => availability == SpotAvailability.available;
+  bool get canStartGuestSession =>
+      bookable && availability == SpotAvailability.available;
+
+  String get availabilityReasonLabel {
+    if (availabilityReason.isEmpty) return 'Availability unavailable';
+    return _reasonLabel(availabilityReason);
+  }
+
+  String get sensorHealthReasonLabel =>
+      sensorHealthReason.isEmpty ? '' : _reasonLabel(sensorHealthReason);
+
+  static String _reasonLabel(String reason) {
+    const knownReasons = {
+      'FUTURE_SLOT_NO_KNOWN_BLOCK': 'No known block for this time slot',
+      'RESERVATION_OR_OPEN_STAY': 'Reservation or guest session in progress',
+      'NO_ACTIVE_SENSOR': 'No active sensor',
+    };
+    return knownReasons[reason] ??
+        reason
+            .replaceAll('_', ' ')
+            .toLowerCase()
+            .replaceFirstMapped(
+              RegExp(r'^[a-z]'),
+              (match) => match[0]!.toUpperCase(),
+            );
+  }
 
   /// Occupied without an active reservation or guest session (US06).
   bool get hasUnvalidatedOccupancy =>
@@ -125,6 +158,9 @@ class ParkingSpot {
     OccupancyStatus? occupancy,
     ReservationState? reservation,
     SensorHealth? sensorHealth,
+    bool? bookable,
+    String? availabilityReason,
+    String? sensorHealthReason,
     DateTime? lastReadingAt,
     String? guestSessionId,
     bool clearGuestSession = false,
@@ -140,8 +176,10 @@ class ParkingSpot {
       sensorId: sensorId,
       sensorHealth: sensorHealth ?? this.sensorHealth,
       lastReadingAt: lastReadingAt ?? this.lastReadingAt,
+      bookable: bookable ?? this.bookable,
       operationalStatus: operationalStatus,
-      availabilityReason: availabilityReason,
+      availabilityReason: availabilityReason ?? this.availabilityReason,
+      sensorHealthReason: sensorHealthReason ?? this.sensorHealthReason,
       guestSessionId: clearGuestSession
           ? null
           : guestSessionId ?? this.guestSessionId,

@@ -1,7 +1,8 @@
 import '../../domain/parking_rules.dart';
 import '../../core/utils/evidence_image.dart';
 import '../models/guest_session.dart';
-import '../models/monitoring.dart' show ResolutionClassification;
+import '../models/monitoring.dart'
+    show ResolutionClassification, SensorHealthEvent;
 import '../models/operational_alert.dart';
 import '../models/parking_snapshot.dart';
 import '../models/parking_spot.dart';
@@ -17,6 +18,10 @@ class RemoteParkingRepository implements ParkingRepository {
   final _spots = <String, ParkingSpot>{};
   final _guests = <String, GuestSession>{};
   final _alerts = <String, OperationalAlert>{};
+  final _sensorHealthCache = <String, _SpotSensorHealth>{};
+  DateTime? _sensorHealthSyncedAt;
+
+  static const _sensorHealthCacheDuration = Duration(seconds: 30);
 
   Json get _tenant =>
       api.tenant ??
@@ -51,7 +56,6 @@ class RemoteParkingRepository implements ParkingRepository {
     final zoneRows = groups[0];
     final guestRows = groups[1];
     final reservations = groups[2];
-    final sensors = _index(groups[3], 'spotId');
     final conflicts = _index(groups[6], 'conflictId');
     final openGuests = _index(
       guestRows.where((row) => row['status'] == 'OPEN'),
@@ -74,24 +78,48 @@ class RemoteParkingRepository implements ParkingRepository {
       'spotId',
     );
 
-    final loadedSpots = await Future.wait(
+    final spotRowsByZone = <String, List<Json>>{};
+    final availabilityByZone = <String, Map<String, Json>>{};
+    await Future.wait(
       zoneRows.map((zone) async {
         final zoneId = zone['zoneId'] as String;
         final results = await Future.wait([
           api.list('/parking-spots', {'zoneId': zoneId}),
           api.list('/parking-spots/availability', {
             'zoneId': zoneId,
-            'startAt': now
-                .subtract(const Duration(seconds: 1))
-                .toIso8601String(),
-            'endAt': now.add(const Duration(minutes: 1)).toIso8601String(),
+            'startAt': now.toIso8601String(),
+            'endAt': now.add(const Duration(hours: 1)).toIso8601String(),
           }),
         ]);
-        final availability = _index(results[1], 'spotId');
-        return results[0].map((row) {
+        spotRowsByZone[zoneId] = results[0];
+        availabilityByZone[zoneId] = _index(results[1], 'spotId');
+      }),
+    );
+    final spotRows = spotRowsByZone.values.expand((rows) => rows).toList();
+    final sensorsBySpot = <String, Json>{};
+    for (final sensor in groups[3]) {
+      if (sensor['status'] == 'ACTIVE' && sensor['spotId'] is String) {
+        sensorsBySpot[sensor['spotId'] as String] = sensor;
+      }
+    }
+    final sensorHealth = await _loadSensorHealth(spotRows, sensorsBySpot, now);
+
+    final loadedSpots = <ParkingSpot>[];
+    for (final zone in zoneRows) {
+      final zoneId = zone['zoneId'] as String;
+      final availability = availabilityByZone[zoneId] ?? const <String, Json>{};
+      loadedSpots.addAll(
+        (spotRowsByZone[zoneId] ?? const <Json>[]).map((row) {
           final id = row['spotId'] as String;
           final state = availability[id];
-          final sensor = sensors[id];
+          final sensor = sensorsBySpot[id];
+          final sensorState =
+              sensorHealth[id] ??
+              const _SpotSensorHealth(
+                health: SensorHealth.unknown,
+                reason: '',
+                sensorId: null,
+              );
           final occupancy = switch (state?['physicalOccupancy']) {
             'AVAILABLE' => OccupancyStatus.available,
             'OCCUPIED' => OccupancyStatus.occupied,
@@ -104,39 +132,33 @@ class RemoteParkingRepository implements ParkingRepository {
             code: row['code'] as String,
             zoneId: zoneId,
             type: _spotType(row),
-            occupancy:
-                row['operationalStatus'] == 'ACTIVE' &&
-                    zone['status'] == 'ACTIVE'
-                ? occupancy
-                : OccupancyStatus.unavailable,
+            occupancy: occupancy,
             reservation: activeReservations.containsKey(id)
                 ? ReservationState.active
-                : reservation != null ||
-                      state?['reason'] == 'RESERVATION_OR_OPEN_STAY' &&
-                          !openGuests.containsKey(id)
+                : reservation != null
                 ? ReservationState.reserved
                 : ReservationState.none,
             reservationCode: reservation?['reservationId'] as String?,
             sensorId: sensor?['sensorId'] as String? ?? '',
-            sensorHealth: occupancy == OccupancyStatus.unavailable
-                ? SensorHealth.failed
-                : SensorHealth.healthy,
+            sensorHealth: sensorState.health,
+            sensorHealthReason: sensorState.reason,
             lastReadingAt:
                 _date(sensor?['lastSeenAt']) ??
                 DateTime.fromMillisecondsSinceEpoch(0),
+            bookable: state?['bookable'] == true,
             operationalStatus: row['operationalStatus'] as String? ?? 'UNKNOWN',
             availabilityReason: state?['reason'] as String? ?? '',
             guestSessionId: openGuests[id]?['guestSessionId'] as String?,
           );
-        }).toList();
-      }),
-    );
+        }),
+      );
+    }
     if (!identical(tenant, api.tenant)) {
       throw const ParkingRuleException(
         'Your session has ended. Sign in again.',
       );
     }
-    final spots = loadedSpots.expand((items) => items).toList();
+    final spots = loadedSpots;
     _spots
       ..clear()
       ..addEntries(spots.map((spot) => MapEntry(spot.id, spot)));
@@ -169,6 +191,101 @@ class RemoteParkingRepository implements ParkingRepository {
       audit: const [],
       updatedAt: now,
     );
+  }
+
+  Future<Map<String, _SpotSensorHealth>> _loadSensorHealth(
+    List<Json> spots,
+    Map<String, Json> sensorsBySpot,
+    DateTime now,
+  ) async {
+    final cacheIsFresh =
+        _sensorHealthSyncedAt != null &&
+        now.difference(_sensorHealthSyncedAt!) < _sensorHealthCacheDuration &&
+        spots.every((spot) {
+          final spotId = spot['spotId'] as String;
+          final sensorId = sensorsBySpot[spotId]?['sensorId'] as String?;
+          return _sensorHealthCache[spotId]?.sensorId == sensorId;
+        });
+    if (cacheIsFresh) return Map.of(_sensorHealthCache);
+
+    final sensorIds = sensorsBySpot.values
+        .map((sensor) => sensor['sensorId'])
+        .whereType<String>()
+        .toSet();
+    final eventResults = await Future.wait(
+      sensorIds.map(
+        (sensorId) async => (
+          sensorId,
+          await api.list('/sensor-health-events', {'sensorId': sensorId}),
+        ),
+      ),
+    );
+    final healthBySensor = <String, _SpotSensorHealth>{};
+    for (final (sensorId, rows) in eventResults) {
+      final currentEvents =
+          rows
+              .map(SensorHealthEvent.fromJson)
+              .where((event) => event.recoveredAt == null)
+              .toList()
+            ..sort(
+              (a, b) => (b.observedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+                  .compareTo(
+                    a.observedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+                  ),
+            );
+      if (currentEvents.isNotEmpty) {
+        final event = currentEvents.first;
+        healthBySensor[sensorId] = _SpotSensorHealth(
+          health: switch (event.health.name) {
+            'healthy' => SensorHealth.healthy,
+            'degraded' => SensorHealth.degraded,
+            'failed' => SensorHealth.failed,
+            _ => SensorHealth.unknown,
+          },
+          reason: event.reason,
+          sensorId: sensorId,
+        );
+      }
+    }
+
+    final result = <String, _SpotSensorHealth>{};
+    final withoutHealthEvent = <Json>[];
+    for (final spot in spots) {
+      final spotId = spot['spotId'] as String;
+      final sensorId = sensorsBySpot[spotId]?['sensorId'] as String?;
+      final health = sensorId == null ? null : healthBySensor[sensorId];
+      if (health != null) {
+        result[spotId] = health;
+      } else {
+        withoutHealthEvent.add(spot);
+      }
+    }
+
+    final observations = await Future.wait(
+      withoutHealthEvent.map((spot) async {
+        final spotId = spot['spotId'] as String;
+        return (
+          spotId,
+          await api.object('/occupancy-sensors/spots/$spotId/occupancy'),
+        );
+      }),
+    );
+    for (final (spotId, observation) in observations) {
+      final reason = observation['reason'] as String? ?? '';
+      result[spotId] = _SpotSensorHealth(
+        health: reason == 'NO_ACTIVE_SENSOR'
+            ? SensorHealth.noSensor
+            : SensorHealth.unknown,
+        reason: reason,
+        sensorId: sensorsBySpot[spotId]?['sensorId'] as String?,
+      );
+    }
+
+    _sensorHealthCache
+      ..clear()
+      ..addAll(result);
+    _sensorHealthSyncedAt = now;
+    return result;
   }
 
   @override
@@ -537,6 +654,18 @@ class RemoteParkingRepository implements ParkingRepository {
       ],
     );
   }
+}
+
+class _SpotSensorHealth {
+  const _SpotSensorHealth({
+    required this.health,
+    required this.reason,
+    required this.sensorId,
+  });
+
+  final SensorHealth health;
+  final String reason;
+  final String? sensorId;
 }
 
 Map<String, Json> _index(Iterable<Json> rows, String key) => {

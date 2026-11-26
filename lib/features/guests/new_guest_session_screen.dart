@@ -6,7 +6,6 @@ import '../../core/utils/formatters.dart';
 import '../../core/widgets/cards.dart';
 import '../../core/widgets/page_layout.dart';
 import '../../data/models/guest_session.dart';
-import '../../data/models/parking_spot.dart';
 import '../../data/repositories/parking_repository.dart';
 import '../../domain/parking_rules.dart';
 
@@ -193,7 +192,7 @@ class _NewGuestSessionScreenState extends State<NewGuestSessionScreen> {
                           enabled: spot.canStartGuestSession,
                           child: Text(
                             '${spot.code} · ${spot.type.label} · '
-                            '${spot.availability.label}',
+                            '${spot.canStartGuestSession ? spot.availability.label : spot.availabilityReasonLabel}',
                             style: TextStyle(
                               color: spot.canStartGuestSession
                                   ? AppColors.textPrimary
@@ -206,8 +205,7 @@ class _NewGuestSessionScreenState extends State<NewGuestSessionScreen> {
                     validator: (value) {
                       if (value == null) return 'Select a parking spot';
                       final spot = admin.spotById(value);
-                      if (spot == null ||
-                          spot.availability != SpotAvailability.available) {
+                      if (spot == null || !spot.canStartGuestSession) {
                         return 'Select an Available spot';
                       }
                       return null;
