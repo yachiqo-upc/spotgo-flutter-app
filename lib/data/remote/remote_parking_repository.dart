@@ -1,5 +1,7 @@
 import '../../domain/parking_rules.dart';
+import '../../core/utils/evidence_image.dart';
 import '../models/guest_session.dart';
+import '../models/monitoring.dart' show ResolutionClassification;
 import '../models/operational_alert.dart';
 import '../models/parking_snapshot.dart';
 import '../models/parking_spot.dart';
@@ -253,46 +255,146 @@ class RemoteParkingRepository implements ParkingRepository {
   }
 
   @override
-  Future<OperationalAlert> updateAlert(
-    String alertId, {
-    required String classification,
+  Future<OperationalAlert> closeAlert(
+    OperationalAlert alert, {
+    required ResolutionClassification classification,
     required String action,
-    required bool actionCompleted,
     required String actor,
   }) async {
-    final existing = _alerts[alertId];
+    final existing = _alerts[alert.id];
     if (existing == null) {
       throw const ParkingRuleException(
         'Alert not found. Refresh and try again.',
       );
     }
-    final capacity = existing.type == AlertType.highOccupancy;
-    if (capacity && actionCompleted) {
+    if (existing.type == AlertType.highOccupancy) {
       throw const ParkingRuleException(
-        'Capacity alerts close automatically when occupancy falls below the threshold.',
+        'Capacity alerts can only be acknowledged and resolve automatically.',
       );
     }
-    final path = capacity ? '/capacity-alerts' : '/occupancy-alerts';
-    if (!actionCompleted && existing.status == AlertStatus.monitoring) {
+    final cleanAction = action.trim();
+    if (cleanAction.isEmpty || cleanAction.length > 1000) {
+      throw const ParkingRuleException(
+        'Resolution action is required and must be at most 1000 characters.',
+      );
+    }
+    if (classification == ResolutionClassification.unknown) {
+      throw const ParkingRuleException('Choose a resolution classification.');
+    }
+    if (existing.status == AlertStatus.resolved) {
       return existing;
     }
-    final row = await api.object(
-      '$path/$alertId/${actionCompleted ? 'close' : 'acknowledge'}',
+
+    var current = existing;
+    if (current.status == AlertStatus.open) {
+      await api.request(
+        '/occupancy-alerts/${alert.id}/acknowledge',
+        method: 'POST',
+      );
+      current = current.copyWith(
+        status: AlertStatus.monitoring,
+        history: [
+          ...current.history,
+          AlertEvent(
+            at: DateTime.now(),
+            actor: actor,
+            description: 'Alert acknowledged',
+          ),
+        ],
+      );
+      _alerts[alert.id] = current;
+    }
+
+    final conflictId = current.conflictId;
+    final healthEventId = current.healthEventId;
+    if (current.alertType == MonitoringAlertKind.occupancyConflict &&
+        conflictId != null) {
+      final conflict = await api.object('/occupancy-conflicts/$conflictId');
+      if (conflict['status'] == 'OPEN') {
+        await api.request(
+          '/occupancy-conflicts/$conflictId/acknowledge',
+          method: 'POST',
+        );
+      }
+      if (conflict['status'] != 'RESOLVED') {
+        await api.request(
+          '/occupancy-conflicts/$conflictId/resolve',
+          method: 'POST',
+        );
+      }
+    } else if (current.alertType == MonitoringAlertKind.sensorFailure &&
+        healthEventId != null) {
+      final healthEvent = await api.object(
+        '/sensor-health-events/$healthEventId',
+      );
+      if (healthEvent['recoveredAt'] == null) {
+        await api.request(
+          '/sensor-health-events/$healthEventId/recover',
+          method: 'POST',
+        );
+      }
+    }
+
+    await api.request(
+      '/occupancy-alerts/${alert.id}/close',
       method: 'POST',
-      body: actionCompleted
-          ? {
-              'resolutionClassification': switch (classification) {
-                'Unauthorized vehicle' => 'UNAUTHORIZED_OCCUPANCY',
-                'Spot reassigned' => 'RESERVATION_REASSIGNED',
-                'Sensor false positive' => 'FALSE_POSITIVE',
-                _ => 'OTHER',
-              },
-              'resolutionAction': action.trim(),
-            }
-          : {},
+      body: {
+        'resolutionClassification': _classificationWire(classification),
+        'resolutionAction': cleanAction,
+      },
     );
-    return _alert(row, capacity: capacity, previousType: existing.type);
+    final closed = current.copyWith(
+      status: AlertStatus.resolved,
+      classification: _classificationWire(classification),
+      actionTaken: cleanAction,
+      history: [
+        ...current.history,
+        AlertEvent(
+          at: DateTime.now(),
+          actor: actor,
+          description:
+              'Resolved as "${_classificationWire(classification)}": '
+              '$cleanAction',
+        ),
+      ],
+    );
+    _alerts[alert.id] = closed;
+    return closed;
   }
+
+  @override
+  Future<void> uploadAlertEvidence({
+    required String alertId,
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    final error = validateEvidenceImage(bytes, contentType);
+    if (error != null) {
+      throw ParkingRuleException(error);
+    }
+    await api.uploadImage(
+      '/occupancy-alerts/$alertId/evidence',
+      bytes: bytes,
+      contentType: contentType,
+    );
+  }
+
+  @override
+  Future<List<int>> alertEvidence(String alertId) =>
+      api.bytes('/occupancy-alerts/$alertId/evidence');
+
+  static String _classificationWire(
+    ResolutionClassification value,
+  ) => switch (value) {
+    ResolutionClassification.unauthorizedOccupancy => 'UNAUTHORIZED_OCCUPANCY',
+    ResolutionClassification.reservationReassigned => 'RESERVATION_REASSIGNED',
+    ResolutionClassification.sensorRecovered => 'SENSOR_RECOVERED',
+    ResolutionClassification.falsePositive => 'FALSE_POSITIVE',
+    ResolutionClassification.other => 'OTHER',
+    ResolutionClassification.unknown => throw const ParkingRuleException(
+      'Choose a resolution classification.',
+    ),
+  };
 
   ParkingZone _zone(Json row, Json tenant) {
     final id = row['zoneId'] as String;
@@ -400,6 +502,9 @@ class RemoteParkingRepository implements ParkingRepository {
         'ACKNOWLEDGED' => AlertStatus.monitoring,
         _ => AlertStatus.open,
       },
+      alertType: MonitoringAlertKind.parse(row['alertType']),
+      conflictId: row['conflictId'] as String?,
+      healthEventId: row['healthEventId'] as String?,
       classification: row['resolutionClassification'] as String?,
       actionTaken: row['resolutionAction'] as String?,
       history: [

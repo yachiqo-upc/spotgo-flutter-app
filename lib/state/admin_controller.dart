@@ -6,6 +6,7 @@ import '../data/models/operational_alert.dart';
 import '../data/models/parking_snapshot.dart';
 import '../data/models/parking_spot.dart';
 import '../data/models/parking_zone.dart';
+import '../data/models/monitoring.dart';
 import '../data/remote/remote_parking_repository.dart';
 import '../data/repositories/parking_repository.dart';
 import '../domain/parking_rules.dart';
@@ -121,20 +122,38 @@ class AdminController extends ChangeNotifier {
     ),
   );
 
-  Future<OperationalAlert> updateAlert(
-    String alertId, {
-    required String classification,
+  Future<OperationalAlert> closeAlert(
+    OperationalAlert alert, {
+    required ResolutionClassification classification,
     required String action,
-    required bool actionCompleted,
-  }) => _mutate(
-    () => _repository.updateAlert(
-      alertId,
-      classification: classification,
-      action: action,
-      actionCompleted: actionCompleted,
-      actor: account.fullName,
-    ),
+  }) async {
+    try {
+      final result = await _repository.closeAlert(
+        alert,
+        classification: classification,
+        action: action,
+        actor: account.fullName,
+      );
+      await refresh();
+      return result;
+    } catch (_) {
+      await refresh();
+      rethrow;
+    }
+  }
+
+  Future<void> uploadAlertEvidence({
+    required String alertId,
+    required List<int> bytes,
+    required String contentType,
+  }) => _repository.uploadAlertEvidence(
+    alertId: alertId,
+    bytes: bytes,
+    contentType: contentType,
   );
+
+  Future<List<int>> alertEvidence(String alertId) =>
+      _repository.alertEvidence(alertId);
 
   /// Runs a mutation and refreshes the snapshot. Rule violations are
   /// rethrown as [ParkingRuleException] so forms can show them.

@@ -184,10 +184,7 @@ class SpotGoApi {
       }
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(
-        response.statusCode,
-        errorMessage(payload, response.statusCode),
-      );
+      throw _apiException(payload, response.statusCode);
     }
     return payload;
   }
@@ -234,10 +231,7 @@ class SpotGoApi {
           payload = null;
         }
       }
-      throw ApiException(
-        response.statusCode,
-        errorMessage(payload, response.statusCode),
-      );
+      throw _apiException(payload, response.statusCode);
     }
     return result;
   }
@@ -254,9 +248,23 @@ class SpotGoApi {
     }
     return 'SpotGo API returned HTTP $status.';
   }
+
+  static ApiException _apiException(dynamic payload, int status) =>
+      ApiException(
+        status,
+        errorMessage(payload, status),
+        code: payload is Json && payload['code'] is String
+            ? payload['code'] as String
+            : null,
+      );
 }
 
 class ApiException extends ParkingRuleException {
-  const ApiException(this.status, super.message);
-  final int status;
+  const ApiException(int status, super.message, {this.code})
+    : super(status: status);
+
+  @override
+  int get status => super.status!;
+
+  final String? code;
 }

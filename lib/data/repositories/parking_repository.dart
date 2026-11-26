@@ -2,6 +2,7 @@ import '../models/guest_session.dart';
 import '../models/operational_alert.dart';
 import '../models/parking_snapshot.dart';
 import '../models/parking_zone.dart';
+import '../models/monitoring.dart';
 
 class GuestSessionDraft {
   const GuestSessionDraft({
@@ -45,11 +46,18 @@ abstract interface class ParkingRepository {
     required String actor,
   });
 
-  Future<OperationalAlert> updateAlert(
-    String alertId, {
-    required String classification,
+  Future<OperationalAlert> closeAlert(
+    OperationalAlert alert, {
+    required ResolutionClassification classification,
     required String action,
-    required bool actionCompleted,
     required String actor,
   });
+
+  Future<void> uploadAlertEvidence({
+    required String alertId,
+    required List<int> bytes,
+    required String contentType,
+  });
+
+  Future<List<int>> alertEvidence(String alertId);
 }

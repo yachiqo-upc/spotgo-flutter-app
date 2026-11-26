@@ -1,5 +1,7 @@
 import '../../domain/parking_rules.dart';
+import '../../core/utils/evidence_image.dart';
 import '../models/guest_session.dart';
+import '../models/monitoring.dart' show ResolutionClassification;
 import '../models/operational_alert.dart';
 import '../models/parking_snapshot.dart';
 import '../models/parking_spot.dart';
@@ -15,23 +17,40 @@ class MockParkingRepository implements ParkingRepository {
     DateTime Function()? clock,
     this.latency = const Duration(milliseconds: 400),
     this.failFirstFetch = false,
+    this.failNextAlertCloseStatus,
   }) : _clock = clock ?? DateTime.now {
     final seed = MockSeed.build(_clock());
     _zones = seed.zones;
     _spots = seed.spots;
     _alerts = seed.alerts;
     _sessions = seed.sessions;
+    for (final alert in _alerts.where(
+      (item) => item.status == AlertStatus.resolved,
+    )) {
+      if (alert.conflictId case final conflictId?) {
+        _acknowledgedConflicts.add(conflictId);
+        _resolvedConflicts.add(conflictId);
+      }
+      if (alert.healthEventId case final healthEventId?) {
+        _recoveredHealthEvents.add(healthEventId);
+      }
+    }
   }
 
   final DateTime Function() _clock;
   final Duration latency;
   bool failFirstFetch;
+  int? failNextAlertCloseStatus;
 
   late List<ParkingZone> _zones;
   late List<ParkingSpot> _spots;
   late List<OperationalAlert> _alerts;
   late List<GuestSession> _sessions;
   final List<AuditEntry> _audit = [];
+  final Set<String> _acknowledgedConflicts = {};
+  final Set<String> _resolvedConflicts = {};
+  final Set<String> _recoveredHealthEvents = {};
+  final Map<String, List<int>> _evidence = {};
   int _sequence = 1050;
 
   Future<void> _delay() => Future<void>.delayed(latency);
@@ -298,53 +317,168 @@ class MockParkingRepository implements ParkingRepository {
   }
 
   @override
-  Future<OperationalAlert> updateAlert(
-    String alertId, {
-    required String classification,
+  Future<OperationalAlert> closeAlert(
+    OperationalAlert alert, {
+    required ResolutionClassification classification,
     required String action,
-    required bool actionCompleted,
     required String actor,
   }) async {
     await _delay();
-    final alert = _alerts.firstWhere(
-      (a) => a.id == alertId,
+    var current = _alerts.firstWhere(
+      (a) => a.id == alert.id,
       orElse: () => throw const ParkingRuleException('Alert not found'),
     );
-    if (!alert.isPending) {
-      throw const ParkingRuleException('This alert is already resolved.');
+    if (current.type == AlertType.highOccupancy) {
+      throw const ParkingRuleException(
+        'Capacity alerts can only be acknowledged and resolve automatically.',
+      );
     }
-    final error = ParkingRules.validateAlertResolution(
-      classification: classification,
-      action: action,
-      actionCompleted: true,
-    );
-    if (error != null) throw ParkingRuleException(error);
+    if (current.status == AlertStatus.resolved) return current;
+    final cleanAction = action.trim();
+    if (cleanAction.isEmpty || cleanAction.length > 1000) {
+      throw const ParkingRuleException(
+        'Resolution action is required and must be at most 1000 characters.',
+      );
+    }
+    if (classification == ResolutionClassification.unknown) {
+      throw const ParkingRuleException('Choose a resolution classification.');
+    }
 
-    final status = actionCompleted
-        ? AlertStatus.resolved
-        : AlertStatus.monitoring;
-    final updated = alert.copyWith(
-      status: status,
-      classification: classification,
-      actionTaken: action.trim(),
+    if (current.status == AlertStatus.open) {
+      current = current.copyWith(
+        status: AlertStatus.monitoring,
+        history: [
+          ...current.history,
+          AlertEvent(
+            at: _clock(),
+            actor: actor,
+            description: 'Alert acknowledged',
+          ),
+        ],
+      );
+      _replaceAlert(current);
+    }
+
+    final conflictId = current.conflictId;
+    final healthEventId = current.healthEventId;
+    if (current.alertType == MonitoringAlertKind.occupancyConflict &&
+        conflictId != null) {
+      if (_acknowledgedConflicts.add(conflictId)) {
+        current = _appendAlertEvent(
+          current,
+          actor: actor,
+          description: 'Conflict acknowledged',
+        );
+      }
+      if (_resolvedConflicts.add(conflictId)) {
+        current = _appendAlertEvent(
+          current,
+          actor: actor,
+          description: 'Conflict resolved',
+        );
+      }
+    } else if (current.alertType == MonitoringAlertKind.sensorFailure &&
+        healthEventId != null) {
+      if (_recoveredHealthEvents.add(healthEventId)) {
+        current = _appendAlertEvent(
+          current,
+          actor: actor,
+          description: 'Sensor health recovered',
+        );
+      }
+    }
+
+    final failureStatus = failNextAlertCloseStatus;
+    if (failureStatus != null) {
+      failNextAlertCloseStatus = null;
+      throw ParkingRuleException(
+        'Resolve the incident that created this alert before recording its resolution.',
+        status: failureStatus,
+      );
+    }
+
+    final updated = current.copyWith(
+      status: AlertStatus.resolved,
+      classification: _classificationWire(classification),
+      actionTaken: cleanAction,
       history: [
-        ...alert.history,
+        ...current.history,
         AlertEvent(
           at: _clock(),
           actor: actor,
-          description: actionCompleted
-              ? 'Resolved as "$classification": ${action.trim()}'
-              : 'Monitoring as "$classification": ${action.trim()}',
+          description:
+              'Resolved as "${_classificationWire(classification)}": '
+              '$cleanAction',
         ),
       ],
     );
-    _alerts = [
-      for (final a in _alerts)
-        if (a.id == alertId) updated else a,
-    ];
-    _log(actor, 'Updated alert ${alert.id}', alert.status.label, status.label);
+    _replaceAlert(updated);
+    _log(actor, 'Closed alert ${alert.id}', current.status.label, 'Resolved');
     return updated;
   }
+
+  @override
+  Future<void> uploadAlertEvidence({
+    required String alertId,
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    await _delay();
+    final error = validateEvidenceImage(bytes, contentType);
+    if (error != null) throw ParkingRuleException(error);
+    if (!_alerts.any((alert) => alert.id == alertId)) {
+      throw const ParkingRuleException('Alert not found');
+    }
+    _evidence[alertId] = List.unmodifiable(bytes);
+  }
+
+  @override
+  Future<List<int>> alertEvidence(String alertId) async {
+    await _delay();
+    final bytes = _evidence[alertId];
+    if (bytes == null) {
+      throw const ParkingRuleException(
+        'No evidence is attached to this alert.',
+        status: 404,
+      );
+    }
+    return List.unmodifiable(bytes);
+  }
+
+  OperationalAlert _appendAlertEvent(
+    OperationalAlert alert, {
+    required String actor,
+    required String description,
+  }) {
+    final updated = alert.copyWith(
+      history: [
+        ...alert.history,
+        AlertEvent(at: _clock(), actor: actor, description: description),
+      ],
+    );
+    _replaceAlert(updated);
+    return updated;
+  }
+
+  void _replaceAlert(OperationalAlert alert) {
+    _alerts = [
+      for (final item in _alerts)
+        if (item.id == alert.id) alert else item,
+    ];
+  }
+
+  static String _classificationWire(
+    ResolutionClassification value,
+  ) => switch (value) {
+    ResolutionClassification.unauthorizedOccupancy => 'UNAUTHORIZED_OCCUPANCY',
+    ResolutionClassification.reservationReassigned => 'RESERVATION_REASSIGNED',
+    ResolutionClassification.sensorRecovered => 'SENSOR_RECOVERED',
+    ResolutionClassification.falsePositive => 'FALSE_POSITIVE',
+    ResolutionClassification.other => 'OTHER',
+    ResolutionClassification.unknown => throw const ParkingRuleException(
+      'Choose a resolution classification.',
+    ),
+  };
 
   void _evaluateHighOccupancy() {
     final alreadyOpen = _alerts.any(

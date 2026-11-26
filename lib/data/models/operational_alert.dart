@@ -65,6 +65,18 @@ enum AlertStatus {
   final String label;
 }
 
+enum MonitoringAlertKind {
+  occupancyConflict,
+  sensorFailure,
+  unknown;
+
+  static MonitoringAlertKind parse(Object? value) => switch (value) {
+    'OCCUPANCY_CONFLICT' => MonitoringAlertKind.occupancyConflict,
+    'SENSOR_FAILURE' => MonitoringAlertKind.sensorFailure,
+    _ => MonitoringAlertKind.unknown,
+  };
+}
+
 class AlertEvent {
   const AlertEvent({
     required this.at,
@@ -88,6 +100,9 @@ class OperationalAlert {
     required this.detectedAt,
     required this.status,
     required this.history,
+    this.alertType = MonitoringAlertKind.unknown,
+    this.conflictId,
+    this.healthEventId,
     this.spotCode,
     this.classification,
     this.actionTaken,
@@ -104,6 +119,9 @@ class OperationalAlert {
   final String source;
   final DateTime detectedAt;
   final AlertStatus status;
+  final MonitoringAlertKind alertType;
+  final String? conflictId;
+  final String? healthEventId;
   final String? classification;
   final String? actionTaken;
   final List<AlertEvent> history;
@@ -128,6 +146,9 @@ class OperationalAlert {
       source: source,
       detectedAt: detectedAt,
       status: status ?? this.status,
+      alertType: alertType,
+      conflictId: conflictId,
+      healthEventId: healthEventId,
       classification: classification ?? this.classification,
       actionTaken: actionTaken ?? this.actionTaken,
       history: history ?? this.history,

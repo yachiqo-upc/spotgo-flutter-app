@@ -1,15 +1,20 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../app/app_scope.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/evidence_image.dart';
 import '../../core/widgets/cards.dart';
-import '../../core/widgets/choice_chip_bar.dart';
 import '../../core/widgets/page_layout.dart';
 import '../../core/widgets/state_views.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../data/models/operational_alert.dart';
+import '../../data/models/monitoring.dart' show ResolutionClassification;
+import '../../data/repositories/monitoring_repository.dart';
 import '../../domain/parking_rules.dart';
 import '../../state/admin_controller.dart';
 import 'alert_widgets.dart';
@@ -26,10 +31,15 @@ class AlertDetailScreen extends StatefulWidget {
 class _AlertDetailScreenState extends State<AlertDetailScreen> {
   final _formKey = GlobalKey<FormState>();
   final _actionController = TextEditingController();
-  String? _classification;
+  ResolutionClassification? _classification;
   String? _error;
-  bool _actionCompleted = false;
+  String? _evidenceError;
+  Uint8List? _evidenceBytes;
   bool _saving = false;
+  bool _retryable = false;
+  bool _acknowledgingCapacity = false;
+  bool _uploadingEvidence = false;
+  bool _loadingEvidence = false;
   bool _initialized = false;
 
   @override
@@ -38,7 +48,13 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
     if (_initialized) return;
     final alert = AdminScope.of(context).alertById(widget.alertId);
     if (alert == null) return;
-    _classification = alert.classification;
+    _classification = switch (alert.alertType) {
+      MonitoringAlertKind.sensorFailure =>
+        ResolutionClassification.sensorRecovered,
+      MonitoringAlertKind.occupancyConflict =>
+        ResolutionClassification.unauthorizedOccupancy,
+      MonitoringAlertKind.unknown => ResolutionClassification.other,
+    };
     _actionController.text = alert.actionTaken ?? '';
     _initialized = true;
   }
@@ -50,7 +66,7 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
   }
 
   Future<void> _changeClassification(OperationalAlert alert) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showModalBottomSheet<ResolutionClassification>(
       context: context,
       builder: (sheetContext) => SafeArea(
         child: Padding(
@@ -68,9 +84,11 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
                   ),
                 ),
               ),
-              for (final option in alert.type.classifications)
+              for (final option in ResolutionClassification.values.where(
+                (value) => value != ResolutionClassification.unknown,
+              ))
                 ListTile(
-                  title: Text(option),
+                  title: Text(_classificationLabel(option)),
                   selected: option == _classification,
                   selectedColor: AppColors.primary,
                   onTap: () => Navigator.of(sheetContext).pop(option),
@@ -84,13 +102,15 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
     setState(() {
       _classification = selected;
       _error = null;
+      _retryable = false;
     });
   }
 
   Future<void> _submit(AdminController admin, OperationalAlert alert) async {
     if (_saving || !alert.isPending) return;
     if (!_formKey.currentState!.validate()) return;
-    if (_classification == null || _classification!.isEmpty) {
+    if (_classification == null ||
+        _classification == ResolutionClassification.unknown) {
       setState(() => _error = 'Select the incident classification');
       return;
     }
@@ -100,21 +120,14 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
       _error = null;
     });
     try {
-      await admin.updateAlert(
-        alert.id,
+      await admin.closeAlert(
+        alert,
         classification: _classification!,
         action: _actionController.text.trim(),
-        actionCompleted: _actionCompleted,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _actionCompleted
-                ? 'Alert resolved. History updated.'
-                : 'Alert saved as monitoring.',
-          ),
-        ),
+        SnackBar(content: const Text('Alert closed. History updated.')),
       );
       Navigator.of(context).pop();
     } on ParkingRuleException catch (error) {
@@ -122,14 +135,126 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
       setState(() {
         _saving = false;
         _error = error.message;
+        _retryable = error.status == 409;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _saving = false;
         _error = 'Could not update this alert. Please try again.';
+        _retryable = false;
       });
     }
+  }
+
+  Future<void> _acknowledgeCapacity(
+    AdminController admin,
+    OperationalAlert alert,
+  ) async {
+    if (_acknowledgingCapacity) return;
+    setState(() {
+      _acknowledgingCapacity = true;
+      _error = null;
+    });
+    try {
+      await AppScope.of(context).monitoring.acknowledgeCapacityAlert(alert.id);
+      await admin.refresh();
+      if (mounted) Navigator.of(context).pop();
+    } on MonitoringException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _acknowledgingCapacity = false);
+    }
+  }
+
+  Future<void> _uploadEvidence(AdminController admin) async {
+    try {
+      final file = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      final contentType = file.mimeType ?? _detectImageContentType(bytes);
+      final validationError = validateEvidenceImage(bytes, contentType);
+      if (validationError != null) {
+        setState(() => _evidenceError = validationError);
+        return;
+      }
+
+      setState(() {
+        _uploadingEvidence = true;
+        _evidenceError = null;
+      });
+      await admin.uploadAlertEvidence(
+        alertId: widget.alertId,
+        bytes: bytes,
+        contentType: contentType,
+      );
+      if (!mounted) return;
+      setState(() => _evidenceBytes = Uint8List.fromList(bytes));
+    } on ParkingRuleException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _evidenceError = error.status == null
+            ? error.message
+            : '${error.message} (HTTP ${error.status})';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _evidenceError = 'Could not choose or upload an image.');
+    } finally {
+      if (mounted) setState(() => _uploadingEvidence = false);
+    }
+  }
+
+  Future<void> _loadEvidence(AdminController admin) async {
+    setState(() {
+      _loadingEvidence = true;
+      _evidenceError = null;
+    });
+    try {
+      final bytes = await admin.alertEvidence(widget.alertId);
+      if (mounted) setState(() => _evidenceBytes = Uint8List.fromList(bytes));
+    } on ParkingRuleException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _evidenceError = error.status == 404
+            ? 'No evidence is attached to this alert.'
+            : error.status == null
+            ? error.message
+            : '${error.message} (HTTP ${error.status})';
+      });
+    } catch (_) {
+      if (mounted) setState(() => _evidenceError = 'Could not load evidence.');
+    } finally {
+      if (mounted) setState(() => _loadingEvidence = false);
+    }
+  }
+
+  static String _classificationLabel(
+    ResolutionClassification value,
+  ) => switch (value) {
+    ResolutionClassification.unauthorizedOccupancy => 'Unauthorized occupancy',
+    ResolutionClassification.reservationReassigned => 'Reservation reassigned',
+    ResolutionClassification.sensorRecovered => 'Sensor recovered',
+    ResolutionClassification.falsePositive => 'False positive',
+    ResolutionClassification.other => 'Other',
+    ResolutionClassification.unknown => 'Unknown',
+  };
+
+  static String _detectImageContentType(List<int> bytes) {
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4e &&
+        bytes[3] == 0x47) {
+      return 'image/png';
+    }
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xff &&
+        bytes[1] == 0xd8 &&
+        bytes[2] == 0xff) {
+      return 'image/jpeg';
+    }
+    return '';
   }
 
   @override
@@ -155,7 +280,8 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
                       const SizedBox(height: 14),
                       _details(admin, alert),
                       const SizedBox(height: 14),
-                      if (alert.isPending) ...[
+                      if (alert.isPending &&
+                          alert.type != AlertType.highOccupancy) ...[
                         _classificationCard(alert),
                         const SectionTitle('Resolution'),
                         Form(
@@ -169,40 +295,26 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
                             ),
                             minLines: 2,
                             maxLines: 4,
+                            maxLength: 1000,
                             textCapitalization: TextCapitalization.sentences,
-                            validator: (value) =>
-                                (value ?? '').trim().length <
-                                    ParkingRules.minActionLength
-                                ? 'Describe the action taken (at least 5 characters)'
-                                : null,
+                            validator: (value) {
+                              final action = (value ?? '').trim();
+                              if (action.isEmpty) {
+                                return 'Describe the action taken';
+                              }
+                              if (action.length > 1000) {
+                                return 'Use at most 1000 characters';
+                              }
+                              return null;
+                            },
                           ),
-                        ),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            SelectableChip(
-                              label: 'Monitoring',
-                              selected: !_actionCompleted,
-                              enabled: !_saving,
-                              onTap: () =>
-                                  setState(() => _actionCompleted = false),
-                            ),
-                            SelectableChip(
-                              label: 'Resolved',
-                              selected: _actionCompleted,
-                              enabled: !_saving,
-                              onTap: () =>
-                                  setState(() => _actionCompleted = true),
-                            ),
-                          ],
                         ),
                         const SizedBox(height: 14),
                         const NoticeCard(
                           message:
-                              'Resolve this alert only after the required '
-                              'action is completed. Monitoring keeps it pending.',
+                              'Closing a conflict alert also resolves its '
+                              'conflict. Closing a sensor alert recovers its '
+                              'health event first.',
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 12),
@@ -226,12 +338,33 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
                                     color: AppColors.onPrimary,
                                   ),
                                 )
-                              : Text(
-                                  _actionCompleted
-                                      ? 'Mark alert as resolved'
-                                      : 'Save as monitoring',
-                                ),
+                              : Text(_retryable ? 'Reintentar' : 'Close alert'),
                         ),
+                      ] else if (alert.type == AlertType.highOccupancy) ...[
+                        const NoticeCard(
+                          message:
+                              'Capacity alerts can only be acknowledged. '
+                              'They resolve automatically after occupancy '
+                              'falls below the threshold.',
+                        ),
+                        if (alert.status == AlertStatus.open) ...[
+                          if (_error != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              _error!,
+                              style: const TextStyle(color: AppColors.danger),
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            onPressed: _acknowledgingCapacity
+                                ? null
+                                : () => _acknowledgeCapacity(admin, alert),
+                            child: _acknowledgingCapacity
+                                ? const CircularProgressIndicator()
+                                : const Text('Acknowledge capacity alert'),
+                          ),
+                        ],
                       ] else ...[
                         const SectionTitle('Resolution'),
                         SectionCard(
@@ -250,6 +383,65 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
                         const NoticeCard(
                           message: 'This alert is resolved and read only.',
                         ),
+                      ],
+                      if (alert.type != AlertType.highOccupancy) ...[
+                        const SectionTitle('Evidence'),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              key: const Key('alert-upload-evidence'),
+                              onPressed: _uploadingEvidence
+                                  ? null
+                                  : () => _uploadEvidence(admin),
+                              icon: _uploadingEvidence
+                                  ? const SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.add_photo_alternate_outlined,
+                                    ),
+                              label: const Text('Choose image'),
+                            ),
+                            OutlinedButton.icon(
+                              key: const Key('alert-view-evidence'),
+                              onPressed: _loadingEvidence
+                                  ? null
+                                  : () => _loadEvidence(admin),
+                              icon: _loadingEvidence
+                                  ? const SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.image_outlined),
+                              label: const Text('View evidence'),
+                            ),
+                          ],
+                        ),
+                        if (_evidenceError != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _evidenceError!,
+                            style: const TextStyle(color: AppColors.danger),
+                          ),
+                        ],
+                        if (_evidenceBytes != null) ...[
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.memory(
+                              _evidenceBytes!,
+                              key: const Key('alert-evidence-image'),
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ],
                       ],
                       const SectionTitle('History'),
                       SectionCard(
@@ -338,7 +530,9 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            _classification ?? 'No classification selected',
+            _classification == null
+                ? 'No classification selected'
+                : _classificationLabel(_classification!),
             style: const TextStyle(color: AppColors.textSecondary),
           ),
           TextButton(
