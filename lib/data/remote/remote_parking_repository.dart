@@ -24,18 +24,27 @@ class RemoteParkingRepository implements ParkingRepository {
         'Your session has ended. Sign in again.',
       ));
 
+  String get _tenantId {
+    final tenantId = api.authenticatedTenantId;
+    if (tenantId == null || tenantId.isEmpty) {
+      throw const ParkingRuleException(
+        'Your session has ended. Sign in again.',
+      );
+    }
+    return tenantId;
+  }
+
   @override
   Future<ParkingSnapshot> fetchSnapshot() async {
     final tenant = _tenant;
-    final tenantQuery = {'tenantId': tenant['tenantId'] as String};
     final groups = await Future.wait([
-      api.list('/parking-zones', tenantQuery),
+      api.list('/parking-zones', {'tenantId': _tenantId}),
       api.list('/guest-parking-sessions'),
       api.list('/reservations'),
-      api.list('/occupancy-sensors', tenantQuery),
-      api.list('/occupancy-alerts', tenantQuery),
-      api.list('/capacity-alerts', tenantQuery),
-      api.list('/occupancy-conflicts', tenantQuery),
+      api.list('/occupancy-sensors'),
+      api.list('/occupancy-alerts'),
+      api.list('/capacity-alerts'),
+      api.list('/occupancy-conflicts'),
       api.list('/outstanding-balances'),
     ]);
     final now = DateTime.now().toUtc();
@@ -193,7 +202,7 @@ class RemoteParkingRepository implements ParkingRepository {
             '/parking-zones',
             method: 'POST',
             body: body,
-            query: {'tenantId': tenant['tenantId'] as String},
+            query: {'tenantId': _tenantId},
           ) as Json
         : await api.object(
             '/parking-zones/${zone.id}',

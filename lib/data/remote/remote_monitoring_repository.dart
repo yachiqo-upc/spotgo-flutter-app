@@ -228,7 +228,7 @@ class RemoteMonitoringRepository implements MonitoringRepository {
 
   @override
   Future<CapacitySnapshot> createCapacitySnapshot({String? zoneId}) async {
-    final tenantId = api.tenant?['tenantId'];
+    final tenantId = api.authenticatedTenantId;
     if (tenantId is! String || tenantId.isEmpty) {
       throw const MonitoringException('Your session has ended. Sign in again.');
     }

@@ -14,6 +14,7 @@ class SpotGoApi {
   final _http = HttpClient()..connectionTimeout = const Duration(seconds: 8);
   String? _accessToken;
   String? _refreshToken;
+  String? authenticatedTenantId;
   Future<void>? _refreshing;
   int _sessionVersion = 0;
   Json? tenant;
@@ -21,6 +22,7 @@ class SpotGoApi {
   void setSession(Json session) {
     _accessToken = session['accessToken'] as String;
     _refreshToken = session['refreshToken'] as String;
+    authenticatedTenantId = session['tenantId'] as String?;
   }
 
   void clearSession() {
@@ -28,6 +30,7 @@ class SpotGoApi {
     _refreshing = null;
     _accessToken = null;
     _refreshToken = null;
+    authenticatedTenantId = null;
     tenant = null;
   }
 
